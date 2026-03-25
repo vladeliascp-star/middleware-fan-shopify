@@ -2280,7 +2280,8 @@ async function syncStockFromFanToShopify(locationId) {
   for (const p of products) {
     try {
       const sku = p.productCode;
-      const quantity = Number(p.quantity || p.available || 0);
+      const rawQuantity = Number(p.quantity || p.available || 0);
+      const quantity = rawQuantity >= 6 ? rawQuantity : 0;
 
       if (!sku) {
         continue;
@@ -2299,7 +2300,7 @@ async function syncStockFromFanToShopify(locationId) {
         quantity
       );
 
-      console.log(`[SYNC OK] ${sku} → ${quantity}`);
+      console.log(`[SYNC OK] ${sku} → raw=${rawQuantity}, shopify=${quantity}`);
     } catch (err) {
       console.error('[SYNC ERROR]', err.message);
     }
