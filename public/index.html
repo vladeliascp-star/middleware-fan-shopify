@@ -3,24 +3,40 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Middleware FAN - Admin</title>
+  <title>PovesteDeVin Middleware</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div class="container">
-    <header class="page-header">
-      <h1>Middleware FAN - Admin</h1>
-      <p>Interfata minima pentru testare si operare locala</p>
+
+    <!-- HEADER -->
+    <header class="app-header">
+      <div class="app-header-left">
+        <img src="/logo.png" alt="PovesteDeVin" class="logo" />
+        <div>
+          <h1>PovesteDeVin Middleware</h1>
+          <p>Shopify ↔ FAN WMS operational dashboard</p>
+        </div>
+      </div>
+
+      <div class="app-header-right">
+        <button id="btn-health">Health</button>
+        <button id="btn-load-inbound-products">Produse FAN</button>
+        <button id="btn-clear-output" class="secondary">Clear</button>
+      </div>
     </header>
 
-    <section class="card">
-      <h2>Health</h2>
-      <div class="row">
-        <button id="btn-health">Verifica health</button>
-      </div>
-    </section>
+    <!-- TAB NAV -->
+    <div class="tabs">
+      <button class="tab-button is-active" data-tab-target="outbound">Outbound</button>
+      <button class="tab-button" data-tab-target="inbound">Inbound</button>
+      <button class="tab-button" data-tab-target="fulfillment">Fulfillment</button>
+      <button class="tab-button" data-tab-target="products">Products</button>
+      <button class="tab-button" data-tab-target="returns">Returns</button>
+    </div>
 
-    <section class="card">
+    <!-- ================= OUTBOUND ================= -->
+    <section class="card" data-tab-panel="outbound">
       <h2>Outbound</h2>
 
       <div class="form-block">
@@ -56,7 +72,8 @@
       </div>
     </section>
 
-    <section class="card">
+    <!-- ================= INBOUND ================= -->
+    <section class="card" data-tab-panel="inbound" hidden>
       <h2>Inbound</h2>
 
       <div class="form-block">
@@ -64,9 +81,9 @@
 
         <div class="grid-2">
           <input id="inboundOrderDate" type="datetime-local" />
-          <input id="inboundOrderNumber" type="text" placeholder="orderNumber" readonly />
+          <input id="inboundOrderNumber" type="text" readonly />
           <input id="inboundDeliveryDate" type="datetime-local" />
-          <input id="inboundSupplier" type="text" placeholder="supplier" readonly />
+          <input id="inboundSupplier" type="text" readonly />
           <input id="inboundSupplierName" type="text" placeholder="supplierName" />
         </div>
 
@@ -74,28 +91,23 @@
           <h3>Produse inbound</h3>
 
           <div class="row">
-            <button id="btn-load-inbound-products" type="button">Incarca produse FAN</button>
-            <button id="btn-add-inbound-item" type="button">+ Adauga produs</button>
+            <button id="btn-add-inbound-item">+ Adauga produs</button>
           </div>
 
-          <div id="inboundItemsContainer" class="items-box">
-            Se incarca...
-          </div>
+          <div id="inboundItemsContainer" class="items-box"></div>
 
-          <div id="inboundSummaryContainer" class="items-box" style="margin-top: 10px;">
-            Rezumatul inbound va aparea aici.
-          </div>
+          <div id="inboundSummaryContainer" class="items-box" style="margin-top:10px;"></div>
         </div>
 
         <div class="row">
-          <button id="btn-create-inbound">Trimite inbound</button>
+          <button id="btn-create-inbound" class="primary">Trimite inbound</button>
         </div>
       </div>
 
       <div class="form-block">
         <h3>Get inbound</h3>
         <div class="row">
-          <input id="getInboundOrderNumber" type="text" placeholder="Order number" />
+          <input id="getInboundOrderNumber" type="text" />
           <button id="btn-get-inbound">Citeste inbound</button>
         </div>
       </div>
@@ -103,94 +115,90 @@
       <div class="form-block">
         <h3>Inbound report</h3>
         <div class="row">
-          <input id="inboundReportOrderNumber" type="text" placeholder="Order number" />
+          <input id="inboundReportOrderNumber" type="text" />
           <button id="btn-inbound-report">Cauta inbound report</button>
         </div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>Shipment / Shopify</h2>
+    <!-- ================= FULFILLMENT ================= -->
+    <section class="card" data-tab-panel="fulfillment" hidden>
+      <h2>Fulfillment / AWB</h2>
 
       <div class="form-block">
         <h3>Shipment data</h3>
         <div class="row">
-          <input id="shipmentOrderNumber" type="text" placeholder="Order number" />
+          <input id="shipmentOrderNumber" type="text" />
           <button id="btn-shipment-data">Verifica shipment</button>
         </div>
       </div>
 
       <div class="form-block">
-        <h3>FAN to Shopify</h3>
+        <h3>FAN → Shopify</h3>
         <div class="row">
-          <input id="fanToShopifyOrderId" type="text" placeholder="Order ID Shopify" />
-          <button id="btn-fan-to-shopify">Sync AWB in Shopify</button>
+          <input id="fanToShopifyOrderId" type="text" />
+          <button id="btn-fan-to-shopify">Sync AWB</button>
         </div>
       </div>
     </section>
 
-    <section class="card">
+    <!-- ================= PRODUCTS ================= -->
+    <section class="card" data-tab-panel="products" hidden>
       <h2>Products</h2>
 
       <div class="form-block">
-        <h3>Products all</h3>
+        <button id="btn-products-all">Vezi toate produsele</button>
+      </div>
+
+      <div class="form-block">
         <div class="row">
-          <button id="btn-products-all">Vezi toate produsele</button>
+          <input id="productCodeDetails" placeholder="productCode" />
+          <button id="btn-product-details">Detalii</button>
         </div>
       </div>
 
       <div class="form-block">
-        <h3>Product details</h3>
         <div class="row">
-          <input id="productCodeDetails" type="text" placeholder="productCode" />
-          <button id="btn-product-details">Detalii produs</button>
-        </div>
-      </div>
-
-      <div class="form-block">
-        <h3>Product barcodes</h3>
-        <div class="row">
-          <input id="productCodeBarcodes" type="text" placeholder="productCode" />
+          <input id="productCodeBarcodes" />
           <button id="btn-product-barcodes">Barcodes</button>
         </div>
       </div>
 
       <div class="form-block">
-        <h3>Product units of measure</h3>
         <div class="row">
-          <input id="productCodeUom" type="text" placeholder="productCode" />
-          <button id="btn-product-uom">Units of measure</button>
+          <input id="productCodeUom" />
+          <button id="btn-product-uom">UOM</button>
         </div>
       </div>
 
       <div class="form-block">
-        <h3>Product stock</h3>
         <div class="row">
-          <input id="productStockStateId" type="text" placeholder="stateId ex: 1" value="1" />
-          <button id="btn-product-stock">Stoc produse</button>
+          <input id="productStockStateId" value="1" />
+          <button id="btn-product-stock">Stoc</button>
         </div>
       </div>
     </section>
 
-    <section class="card">
+    <!-- ================= RETURNS ================= -->
+    <section class="card" data-tab-panel="returns" hidden>
       <h2>Returns</h2>
 
       <div class="form-block">
-        <h3>Return report by order number</h3>
         <div class="row">
-          <input id="returnOrderNumber" type="text" placeholder="Order number" />
+          <input id="returnOrderNumber" />
           <button id="btn-return-report">Return report</button>
         </div>
       </div>
     </section>
 
+    <!-- OUTPUT -->
     <section class="card output-card">
       <div class="output-header">
         <h2>Raspuns</h2>
-        <button id="btn-clear-output" class="secondary">Curata</button>
       </div>
       <pre id="output">Aici vor aparea raspunsurile JSON...</pre>
     </section>
+
   </div>
 
   <script src="/app.js"></script>
