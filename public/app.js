@@ -8,13 +8,21 @@ const FAN_SUPPLIER_MAX_LENGTH = 20;
 const SUPPLIER_PRIMARY = 'PovesteDeVin - Eight Sigma';
 const SUPPLIER_FALLBACK = 'PDV - Eight Sigma';
 
+function byId(id) {
+  return document.getElementById(id);
+}
+
 function showResult(title, data) {
+  if (!output) return;
+
   output.textContent =
     `=== ${title} ===\n\n` +
     JSON.stringify(data, null, 2);
 }
 
 function showError(title, err) {
+  if (!output) return;
+
   let message = err?.responseBody || err?.message || 'Eroare necunoscuta';
 
   try {
@@ -69,11 +77,12 @@ async function apiRequest(title, url, options = {}) {
 }
 
 function value(id) {
-  return document.getElementById(id).value.trim();
+  const element = byId(id);
+  return element ? element.value.trim() : '';
 }
 
 function setValue(id, newValue) {
-  const element = document.getElementById(id);
+  const element = byId(id);
   if (!element) return;
   element.value = newValue;
 }
@@ -210,7 +219,7 @@ function getInboundSummary() {
 }
 
 function updateInboundSubmitState() {
-  const button = document.getElementById('btn-create-inbound');
+  const button = byId('btn-create-inbound');
 
   if (!button) return;
 
@@ -219,7 +228,7 @@ function updateInboundSubmitState() {
 }
 
 function renderInboundSummary() {
-  const container = document.getElementById('inboundSummaryContainer');
+  const container = byId('inboundSummaryContainer');
 
   if (!container) return;
 
@@ -255,7 +264,7 @@ function renderInboundSummary() {
 }
 
 function renderInboundItems() {
-  const container = document.getElementById('inboundItemsContainer');
+  const container = byId('inboundItemsContainer');
 
   if (!container) return;
 
@@ -428,8 +437,6 @@ async function loadNextInboundOrderNumber() {
   try {
     const data = await apiRequest('Next inbound order number', '/fan/inbound/next-order-number');
 
-    console.log('DEBUG order number:', data);
-
     const orderNumber =
       data?.orderNumber ||
       data?.nextOrderNumber ||
@@ -454,7 +461,7 @@ function attachInboundHeaderListeners() {
     'inboundSupplier',
     'inboundSupplierName'
   ].forEach(id => {
-    const element = document.getElementById(id);
+    const element = byId(id);
 
     if (!element) return;
 
@@ -481,162 +488,221 @@ function resetInboundFormAfterSuccess() {
   renderInboundItems();
 }
 
-document.getElementById('btn-clear-output').addEventListener('click', () => {
-  output.textContent = 'Aici vor aparea raspunsurile JSON...';
-});
+function bindClickById(id, handler) {
+  const nodes = document.querySelectorAll(`[id="${id}"]`);
 
-document.getElementById('btn-load-inbound-products').addEventListener('click', () => {
-  loadInboundProducts();
-});
+  if (!nodes.length) {
+    return;
+  }
 
-document.getElementById('btn-add-inbound-item').addEventListener('click', () => {
-  addInboundItemRow();
-});
-
-document.getElementById('btn-health').addEventListener('click', () => {
-  apiRequest('Health', '/health');
-});
-
-document.getElementById('btn-products-all').addEventListener('click', () => {
-  apiRequest('Products all', '/fan/products/all');
-});
-
-document.getElementById('btn-product-details').addEventListener('click', () => {
-  const productCode = value('productCodeDetails');
-  apiRequest('Product details', `/fan/products/details?productCode=${encodeURIComponent(productCode)}`);
-});
-
-document.getElementById('btn-product-barcodes').addEventListener('click', () => {
-  const productCode = value('productCodeBarcodes');
-  apiRequest('Product barcodes', `/fan/products/barcodes?productCode=${encodeURIComponent(productCode)}`);
-});
-
-document.getElementById('btn-product-uom').addEventListener('click', () => {
-  const productCode = value('productCodeUom');
-  apiRequest('Product units of measure', `/fan/products/units-of-measure?productCode=${encodeURIComponent(productCode)}`);
-});
-
-document.getElementById('btn-product-stock').addEventListener('click', () => {
-  const stateId = value('productStockStateId');
-  apiRequest('Product stock', `/fan/products/stock?stateId=${encodeURIComponent(stateId)}`);
-});
-
-document.getElementById('btn-send-order').addEventListener('click', () => {
-  const orderId = value('outboundOrderId');
-  apiRequest('Send order to FAN', `/fan/send-order/${encodeURIComponent(orderId)}`);
-});
-
-document.getElementById('btn-get-outbound').addEventListener('click', () => {
-  const orderNumber = value('getOutboundOrderNumber');
-  apiRequest('Get outbound', `/fan/outbound/${encodeURIComponent(orderNumber)}`);
-});
-
-document.getElementById('btn-outbound-report').addEventListener('click', () => {
-  const orderNumber = value('outboundReportOrderNumber');
-  apiRequest('Outbound report', `/fan/outbound/report?orderNumber=${encodeURIComponent(orderNumber)}`);
-});
-
-document.getElementById('btn-cancel-outbound').addEventListener('click', () => {
-  const orderNumber = value('cancelOutboundOrderNumber');
-  apiRequest('Cancel outbound', '/fan/outbound/cancel', {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      orderNumbers: [orderNumber]
-    })
+  nodes.forEach(node => {
+    node.addEventListener('click', handler);
   });
-});
+}
 
-document.getElementById('btn-create-inbound').addEventListener('click', async () => {
-  const formValidation = getInboundFormValidation();
+function initTabs() {
+  const tabButtons = document.querySelectorAll('[data-tab-target]');
+  const tabPanels = document.querySelectorAll('[data-tab-panel]');
 
-  const payload = {
-    orderDate: formatDatetimeLocalToFan(value('inboundOrderDate')),
-    orderNumber: value('inboundOrderNumber'),
-    deliveryDate: formatDatetimeLocalToFan(value('inboundDeliveryDate')),
-    supplier: value('inboundSupplier'),
-    supplierName: value('inboundSupplierName'),
-    items: getInboundSummary().items
-  };
-
-  if (!formValidation.isValid) {
-    showError('Create inbound', { message: formValidation.errors.join('\n') });
+  if (!tabButtons.length || !tabPanels.length) {
     return;
   }
 
-  if (isSubmittingInbound) {
-    return;
+  function activateTab(target) {
+    tabButtons.forEach(button => {
+      const isActive = button.getAttribute('data-tab-target') === target;
+      button.classList.toggle('is-active', isActive);
+    });
+
+    tabPanels.forEach(panel => {
+      const isActive = panel.getAttribute('data-tab-panel') === target;
+      panel.hidden = !isActive;
+      panel.classList.toggle('is-active', isActive);
+    });
   }
 
-  isSubmittingInbound = true;
-  updateInboundSubmitState();
+  tabButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      const target = button.getAttribute('data-tab-target');
+      if (!target) return;
+      activateTab(target);
+    });
+  });
 
-  try {
-    await apiRequest('Create inbound', '/fan/inbound/test', {
+  const activeButton =
+    document.querySelector('[data-tab-target].is-active') ||
+    tabButtons[0];
+
+  if (activeButton) {
+    activateTab(activeButton.getAttribute('data-tab-target'));
+  }
+}
+
+function attachGlobalButtonListeners() {
+  bindClickById('btn-clear-output', () => {
+    if (!output) return;
+    output.textContent = 'Aici vor aparea raspunsurile JSON...';
+  });
+
+  bindClickById('btn-load-inbound-products', () => {
+    loadInboundProducts();
+  });
+
+  bindClickById('btn-add-inbound-item', () => {
+    addInboundItemRow();
+  });
+
+  bindClickById('btn-health', () => {
+    apiRequest('Health', '/health');
+  });
+
+  bindClickById('btn-products-all', () => {
+    apiRequest('Products all', '/fan/products/all');
+  });
+
+  bindClickById('btn-product-details', () => {
+    const productCode = value('productCodeDetails');
+    apiRequest('Product details', `/fan/products/details?productCode=${encodeURIComponent(productCode)}`);
+  });
+
+  bindClickById('btn-product-barcodes', () => {
+    const productCode = value('productCodeBarcodes');
+    apiRequest('Product barcodes', `/fan/products/barcodes?productCode=${encodeURIComponent(productCode)}`);
+  });
+
+  bindClickById('btn-product-uom', () => {
+    const productCode = value('productCodeUom');
+    apiRequest('Product units of measure', `/fan/products/units-of-measure?productCode=${encodeURIComponent(productCode)}`);
+  });
+
+  bindClickById('btn-product-stock', () => {
+    const stateId = value('productStockStateId');
+    apiRequest('Product stock', `/fan/products/stock?stateId=${encodeURIComponent(stateId)}`);
+  });
+
+  bindClickById('btn-send-order', () => {
+    const orderId = value('outboundOrderId');
+    apiRequest('Send order to FAN', `/fan/send-order/${encodeURIComponent(orderId)}`);
+  });
+
+  bindClickById('btn-get-outbound', () => {
+    const orderNumber = value('getOutboundOrderNumber');
+    apiRequest('Get outbound', `/fan/outbound/${encodeURIComponent(orderNumber)}`);
+  });
+
+  bindClickById('btn-outbound-report', () => {
+    const orderNumber = value('outboundReportOrderNumber');
+    apiRequest('Outbound report', `/fan/outbound/report?orderNumber=${encodeURIComponent(orderNumber)}`);
+  });
+
+  bindClickById('btn-cancel-outbound', () => {
+    const orderNumber = value('cancelOutboundOrderNumber');
+    apiRequest('Cancel outbound', '/fan/outbound/cancel', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        orderNumbers: [orderNumber]
+      })
+    });
+  });
+
+  bindClickById('btn-create-inbound', async () => {
+    const formValidation = getInboundFormValidation();
+
+    const payload = {
+      orderDate: formatDatetimeLocalToFan(value('inboundOrderDate')),
+      orderNumber: value('inboundOrderNumber'),
+      deliveryDate: formatDatetimeLocalToFan(value('inboundDeliveryDate')),
+      supplier: value('inboundSupplier'),
+      supplierName: value('inboundSupplierName'),
+      items: getInboundSummary().items
+    };
+
+    if (!formValidation.isValid) {
+      showError('Create inbound', { message: formValidation.errors.join('\n') });
+      return;
+    }
+
+    if (isSubmittingInbound) {
+      return;
+    }
+
+    isSubmittingInbound = true;
+    updateInboundSubmitState();
+
+    try {
+      await apiRequest('Create inbound', '/fan/inbound/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      resetInboundFormAfterSuccess();
+      await loadNextInboundOrderNumber();
+    } catch (err) {
+      try {
+        const parsed =
+          typeof err?.responseBody === 'string'
+            ? JSON.parse(err.responseBody)
+            : err?.responseBody;
+
+        if (parsed?.code === 'INBOUND_DUPLICATE') {
+          setValue('inboundOrderNumber', parsed.orderNumber || payload.orderNumber);
+        }
+      } catch {
+        // nu facem nimic suplimentar
+      }
+    } finally {
+      isSubmittingInbound = false;
+      updateInboundSubmitState();
+    }
+  });
+
+  bindClickById('btn-get-inbound', () => {
+    const orderNumber = value('getInboundOrderNumber');
+    apiRequest('Get inbound', `/fan/inbound/${encodeURIComponent(orderNumber)}`);
+  });
+
+  bindClickById('btn-inbound-report', () => {
+    const orderNumber = value('inboundReportOrderNumber');
+    apiRequest('Inbound report', `/fan/inbound/report?orderNumber=${encodeURIComponent(orderNumber)}`);
+  });
+
+  bindClickById('btn-shipment-data', () => {
+    const orderNumber = value('shipmentOrderNumber');
+    apiRequest('Shipment data', `/fan/shipment-data/${encodeURIComponent(orderNumber)}`);
+  });
+
+  bindClickById('btn-fan-to-shopify', () => {
+    const orderId = value('fanToShopifyOrderId');
+
+    apiRequest('FAN to Shopify', '/fan-to-shopify', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ orderId })
     });
-
-    resetInboundFormAfterSuccess();
-    await loadNextInboundOrderNumber();
-  } catch (err) {
-    try {
-      const parsed =
-        typeof err?.responseBody === 'string'
-          ? JSON.parse(err.responseBody)
-          : err?.responseBody;
-
-      if (parsed?.code === 'INBOUND_DUPLICATE') {
-        setValue('inboundOrderNumber', parsed.orderNumber || payload.orderNumber);
-      }
-    } catch {
-      // nu facem nimic suplimentar
-    }
-  } finally {
-    isSubmittingInbound = false;
-    updateInboundSubmitState();
-  }
-});
-
-document.getElementById('btn-get-inbound').addEventListener('click', () => {
-  const orderNumber = value('getInboundOrderNumber');
-  apiRequest('Get inbound', `/fan/inbound/${encodeURIComponent(orderNumber)}`);
-});
-
-document.getElementById('btn-inbound-report').addEventListener('click', () => {
-  const orderNumber = value('inboundReportOrderNumber');
-  apiRequest('Inbound report', `/fan/inbound/report?orderNumber=${encodeURIComponent(orderNumber)}`);
-});
-
-document.getElementById('btn-shipment-data').addEventListener('click', () => {
-  const orderNumber = value('shipmentOrderNumber');
-  apiRequest('Shipment data', `/fan/shipment-data/${encodeURIComponent(orderNumber)}`);
-});
-
-document.getElementById('btn-fan-to-shopify').addEventListener('click', () => {
-  const orderId = value('fanToShopifyOrderId');
-
-  apiRequest('FAN to Shopify', '/fan-to-shopify', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ orderId })
   });
-});
 
-document.getElementById('btn-return-report').addEventListener('click', () => {
-  const orderNumber = value('returnOrderNumber');
-  apiRequest('Return report', `/fan/returns/report/${encodeURIComponent(orderNumber)}`);
-});
+  bindClickById('btn-return-report', () => {
+    const orderNumber = value('returnOrderNumber');
+    apiRequest('Return report', `/fan/returns/report/${encodeURIComponent(orderNumber)}`);
+  });
+}
 
-inboundItems = [createEmptyInboundItem()];
-renderInboundItems();
-attachInboundHeaderListeners();
-initializeInboundDefaults();
-loadNextInboundOrderNumber();
+function initApp() {
+  inboundItems = [createEmptyInboundItem()];
+  renderInboundItems();
+  attachInboundHeaderListeners();
+  attachGlobalButtonListeners();
+  initializeInboundDefaults();
+  loadNextInboundOrderNumber();
+  initTabs();
+}
+
+initApp();
