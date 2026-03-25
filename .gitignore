@@ -1,0 +1,7 @@
+.env
+node_modules
+processed_orders.json
+processed_returns.json
+processed_product_webhooks.json
+shopify_product_sku_map.json
+inbound-counter.json

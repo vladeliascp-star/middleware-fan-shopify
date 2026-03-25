@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Middleware FAN - Admin</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header class="page-header">
+      <h1>Middleware FAN - Admin</h1>
+      <p>Interfata minima pentru testare si operare locala</p>
+    </header>
+
+    <section class="card">
+      <h2>Health</h2>
+      <div class="row">
+        <button id="btn-health">Verifica health</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Outbound</h2>
+
+      <div class="form-block">
+        <h3>Send order to FAN</h3>
+        <div class="row">
+          <input id="outboundOrderId" type="text" placeholder="Order ID Shopify" />
+          <button id="btn-send-order">Trimite in FAN</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Get outbound</h3>
+        <div class="row">
+          <input id="getOutboundOrderNumber" type="text" placeholder="Order number" />
+          <button id="btn-get-outbound">Citeste outbound</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Outbound report</h3>
+        <div class="row">
+          <input id="outboundReportOrderNumber" type="text" placeholder="Order number" />
+          <button id="btn-outbound-report">Cauta report</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Cancel outbound</h3>
+        <div class="row">
+          <input id="cancelOutboundOrderNumber" type="text" placeholder="Order number" />
+          <button id="btn-cancel-outbound" class="danger">Anuleaza</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Inbound</h2>
+
+      <div class="form-block">
+        <h3>Create inbound</h3>
+
+        <div class="grid-2">
+          <input id="inboundOrderDate" type="datetime-local" />
+          <input id="inboundOrderNumber" type="text" placeholder="orderNumber" readonly />
+          <input id="inboundDeliveryDate" type="datetime-local" />
+          <input id="inboundSupplier" type="text" placeholder="supplier" readonly />
+          <input id="inboundSupplierName" type="text" placeholder="supplierName" />
+        </div>
+
+        <div class="form-block">
+          <h3>Produse inbound</h3>
+
+          <div class="row">
+            <button id="btn-load-inbound-products" type="button">Incarca produse FAN</button>
+            <button id="btn-add-inbound-item" type="button">+ Adauga produs</button>
+          </div>
+
+          <div id="inboundItemsContainer" class="items-box">
+            Se incarca...
+          </div>
+
+          <div id="inboundSummaryContainer" class="items-box" style="margin-top: 10px;">
+            Rezumatul inbound va aparea aici.
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="btn-create-inbound">Trimite inbound</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Get inbound</h3>
+        <div class="row">
+          <input id="getInboundOrderNumber" type="text" placeholder="Order number" />
+          <button id="btn-get-inbound">Citeste inbound</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Inbound report</h3>
+        <div class="row">
+          <input id="inboundReportOrderNumber" type="text" placeholder="Order number" />
+          <button id="btn-inbound-report">Cauta inbound report</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Shipment / Shopify</h2>
+
+      <div class="form-block">
+        <h3>Shipment data</h3>
+        <div class="row">
+          <input id="shipmentOrderNumber" type="text" placeholder="Order number" />
+          <button id="btn-shipment-data">Verifica shipment</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>FAN to Shopify</h3>
+        <div class="row">
+          <input id="fanToShopifyOrderId" type="text" placeholder="Order ID Shopify" />
+          <button id="btn-fan-to-shopify">Sync AWB in Shopify</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Products</h2>
+
+      <div class="form-block">
+        <h3>Products all</h3>
+        <div class="row">
+          <button id="btn-products-all">Vezi toate produsele</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Product details</h3>
+        <div class="row">
+          <input id="productCodeDetails" type="text" placeholder="productCode" />
+          <button id="btn-product-details">Detalii produs</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Product barcodes</h3>
+        <div class="row">
+          <input id="productCodeBarcodes" type="text" placeholder="productCode" />
+          <button id="btn-product-barcodes">Barcodes</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Product units of measure</h3>
+        <div class="row">
+          <input id="productCodeUom" type="text" placeholder="productCode" />
+          <button id="btn-product-uom">Units of measure</button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Product stock</h3>
+        <div class="row">
+          <input id="productStockStateId" type="text" placeholder="stateId ex: 1" value="1" />
+          <button id="btn-product-stock">Stoc produse</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Returns</h2>
+
+      <div class="form-block">
+        <h3>Return report by order number</h3>
+        <div class="row">
+          <input id="returnOrderNumber" type="text" placeholder="Order number" />
+          <button id="btn-return-report">Return report</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card output-card">
+      <div class="output-header">
+        <h2>Raspuns</h2>
+        <button id="btn-clear-output" class="secondary">Curata</button>
+      </div>
+      <pre id="output">Aici vor aparea raspunsurile JSON...</pre>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
