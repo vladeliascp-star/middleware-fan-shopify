@@ -66,6 +66,51 @@ body {
   gap: 10px;
 }
 
+/* ===== DASHBOARD MODULES ===== */
+.dashboard-modules {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.dashboard-module-card {
+  padding: 18px;
+}
+
+.module-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.module-header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.module-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--pdv-gray);
+}
+
+.module-table-wrap {
+  border: 1px solid var(--pdv-border);
+  border-radius: 12px;
+  background: #f9fafb;
+  min-height: 220px;
+  padding: 14px;
+  overflow: auto;
+}
+
+.module-placeholder {
+  color: var(--pdv-gray);
+  font-size: 14px;
+}
+
 /* ===== TABS ===== */
 .tabs {
   display: flex;
@@ -224,5 +269,14 @@ button.danger {
 @media (max-width: 768px) {
   .grid-2 {
     grid-template-columns: 1fr;
+  }
+
+  .dashboard-modules {
+    grid-template-columns: 1fr;
+  }
+
+  .module-header {
+    flex-direction: column;
+    align-items: stretch;
   }
 }

@@ -76,6 +76,27 @@ async function apiRequest(title, url, options = {}) {
   }
 }
 
+async function apiRequestSilent(url, options = {}) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+
+  if (!response.ok) {
+    throw {
+      message: `HTTP ${response.status}`,
+      responseBody: JSON.stringify(data, null, 2)
+    };
+  }
+
+  return data;
+}
+
 function value(id) {
   const element = byId(id);
   return element ? element.value.trim() : '';
@@ -411,6 +432,12 @@ function formatDatetimeLocalToFan(value) {
   return `${datePart} ${hours}:${minutes}:00`;
 }
 
+function formatDateToFan(date) {
+  const pad = number => String(number).padStart(2, '0');
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 function getEffectiveSupplierValue() {
   const primary = SUPPLIER_PRIMARY.trim();
   const fallback = SUPPLIER_FALLBACK.trim();
@@ -538,6 +565,172 @@ function initTabs() {
   }
 }
 
+function getProductDescriptionByCode(productCode) {
+  const product = fanProductsCache.find(item => String(item.productCode || '') === String(productCode || ''));
+  return product?.description || '';
+}
+
+function getProductDisplayName(productCode) {
+  const description = getProductDescriptionByCode(productCode);
+
+  if (description) {
+    return description;
+  }
+
+  return productCode || '-';
+}
+
+function renderModuleLoading(containerId, message) {
+  const container = byId(containerId);
+  if (!container) return;
+
+  container.innerHTML = `<div class="module-placeholder">${escapeHtml(message)}</div>`;
+}
+
+function renderModuleError(containerId, message) {
+  const container = byId(containerId);
+  if (!container) return;
+
+  container.innerHTML = `<div class="module-placeholder">${escapeHtml(message)}</div>`;
+}
+
+function renderSimpleTable(containerId, columns, rows, emptyMessage) {
+  const container = byId(containerId);
+  if (!container) return;
+
+  if (!rows.length) {
+    container.innerHTML = `<div class="module-placeholder">${escapeHtml(emptyMessage)}</div>`;
+    return;
+  }
+
+  const headHtml = columns
+    .map(column => `<th>${escapeHtml(column.label)}</th>`)
+    .join('');
+
+  const bodyHtml = rows
+    .map(row => {
+      const cells = columns
+        .map(column => `<td>${escapeHtml(row[column.key])}</td>`)
+        .join('');
+
+      return `<tr>${cells}</tr>`;
+    })
+    .join('');
+
+  container.innerHTML = `
+    <table class="module-table">
+      <thead>
+        <tr>${headHtml}</tr>
+      </thead>
+      <tbody>
+        ${bodyHtml}
+      </tbody>
+    </table>
+  `;
+}
+
+async function ensureFanProductsCacheLoaded() {
+  if (fanProductsCache.length) {
+    return fanProductsCache;
+  }
+
+  const data = await apiRequestSilent('/fan/products/all');
+  fanProductsCache = data.items || data.products || [];
+  return fanProductsCache;
+}
+
+async function loadRealStockModule() {
+  try {
+    renderModuleLoading('realStockModule', 'Se incarca stocurile reale...');
+
+    await ensureFanProductsCacheLoaded();
+
+    const stockData = await apiRequestSilent('/fan/products/stock?stateId=1');
+    const stockItems = stockData.items || stockData.products || [];
+
+    const rows = stockItems
+      .map(item => {
+        const productCode = String(item.productCode || '').trim();
+        const stockReal = Number(item.quantity ?? item.available ?? 0);
+
+        return {
+          denumireProdus: getProductDisplayName(productCode),
+          stockReal
+        };
+      })
+      .sort((a, b) => String(a.denumireProdus).localeCompare(String(b.denumireProdus), 'ro'));
+
+    renderSimpleTable(
+      'realStockModule',
+      [
+        { key: 'denumireProdus', label: 'Denumire produs' },
+        { key: 'stockReal', label: 'Stock real' }
+      ],
+      rows,
+      'Nu exista stocuri de afisat.'
+    );
+  } catch (err) {
+    console.error(err);
+    renderModuleError('realStockModule', 'Nu am putut incarca stocurile reale.');
+  }
+}
+
+async function loadDamagedProductsModule() {
+  try {
+    renderModuleLoading('damagedProductsModule', 'Se incarca produsele deteriorate...');
+
+    await ensureFanProductsCacheLoaded();
+
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(start.getDate() - 30);
+
+    const startDate = encodeURIComponent(formatDateToFan(start));
+    const endDate = encodeURIComponent(formatDateToFan(now));
+
+    const data = await apiRequestSilent(`/fan/returns/report?startDate=${startDate}&endDate=${endDate}`);
+    const items = data.orders || data.items || [];
+
+    const damagedRows = items
+      .filter(item => item && item.isDamaged === true)
+      .map(item => {
+        const productCode = String(item.productCode || '').trim();
+        const quantity = Number(item.quantity || 0);
+        const orderNumber = String(item.orderNumber || '').trim();
+
+        return {
+          denumireProdus: getProductDisplayName(productCode),
+          productCode: productCode || '-',
+          cantitate: quantity,
+          orderNumber: orderNumber || '-'
+        };
+      })
+      .sort((a, b) => String(a.denumireProdus).localeCompare(String(b.denumireProdus), 'ro'));
+
+    renderSimpleTable(
+      'damagedProductsModule',
+      [
+        { key: 'denumireProdus', label: 'Denumire produs' },
+        { key: 'productCode', label: 'Cod produs' },
+        { key: 'cantitate', label: 'Cantitate' },
+        { key: 'orderNumber', label: 'Order number' }
+      ],
+      damagedRows,
+      'Nu exista produse deteriorate in ultimele 30 de zile.'
+    );
+  } catch (err) {
+    console.error(err);
+    renderModuleError('damagedProductsModule', 'Nu am putut incarca produsele deteriorate.');
+  }
+}
+
+async function loadDashboardModules() {
+  await Promise.allSettled([
+    loadRealStockModule(),
+    loadDamagedProductsModule()
+  ]);
+}
+
 function attachGlobalButtonListeners() {
   bindClickById('btn-clear-output', () => {
     if (!output) return;
@@ -554,6 +747,14 @@ function attachGlobalButtonListeners() {
 
   bindClickById('btn-health', () => {
     apiRequest('Health', '/health');
+  });
+
+  bindClickById('btn-refresh-real-stock', () => {
+    loadRealStockModule();
+  });
+
+  bindClickById('btn-refresh-damaged-products', () => {
+    loadDamagedProductsModule();
   });
 
   bindClickById('btn-products-all', () => {
@@ -703,6 +904,7 @@ function initApp() {
   initializeInboundDefaults();
   loadNextInboundOrderNumber();
   initTabs();
+  loadDashboardModules();
 }
 
 initApp();

@@ -26,6 +26,37 @@
       </div>
     </header>
 
+    <!-- ================= DASHBOARD MODULES ================= -->
+    <section class="dashboard-modules">
+      <div class="card dashboard-module-card">
+        <div class="module-header">
+          <div>
+            <h2>Stoc real FAN</h2>
+            <p>Denumire produs + stock real</p>
+          </div>
+          <button id="btn-refresh-real-stock">Refresh</button>
+        </div>
+
+        <div id="realStockModule" class="module-table-wrap">
+          <div class="module-placeholder">Aici va aparea lista cu stocurile reale.</div>
+        </div>
+      </div>
+
+      <div class="card dashboard-module-card">
+        <div class="module-header">
+          <div>
+            <h2>Produse deteriorate</h2>
+            <p>Produse marcate ca deteriorate in FAN</p>
+          </div>
+          <button id="btn-refresh-damaged-products">Refresh</button>
+        </div>
+
+        <div id="damagedProductsModule" class="module-table-wrap">
+          <div class="module-placeholder">Aici va aparea lista cu produsele deteriorate.</div>
+        </div>
+      </div>
+    </section>
+
     <!-- TAB NAV -->
     <div class="tabs">
       <button class="tab-button is-active" data-tab-target="outbound">Outbound</button>
