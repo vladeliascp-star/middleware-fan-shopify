@@ -647,49 +647,6 @@ app.post('/shopify/fulfill-order', async (req, res) => {
   }
 });
 
-app.post('/test/fan-to-shopify', async (req, res) => {
-  try {
-    const { orderId } = req.body;
-
-    if (!orderId) {
-      return res.status(400).json({
-        error: 'orderId este obligatoriu'
-      });
-    }
-
-    // simulare raspuns FAN
-    const fanResponse = {
-      orderNumber: orderId,
-      awb: 'SIMULATED-AWB-123456'
-    };
-
-    const awb = extractAwbFromFanResponse(fanResponse);
-
-    if (!awb) {
-      throw new Error('Nu s-a putut extrage AWB din FAN');
-    }
-
-    const fulfillment = await createShopifyFulfillmentForOrder(
-      orderId,
-      awb,
-      'FAN Courier',
-      `https://www.fancourier.ro/awb-tracking/${awb}`
-    );
-
-    res.json({
-      success: true,
-      awb,
-      fulfillment
-    });
-
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).json({
-      error: err.message || 'Test FAN → Shopify failed'
-    });
-  }
-});
-
 app.post('/fan-to-shopify', async (req, res) => {
   try {
     const { orderId } = req.body;
@@ -1639,69 +1596,6 @@ console.log('[SEND TO FAN] start request...');
 /**
  * ORDERS TEST
  */
-app.post('/fan/orders/test', async (req, res) => {
-  try {
-    const order = req.body;
-
-    const payload = {
-      clientId: Number(process.env.FAN_WMS_CLIENT_ID),
-      version: process.env.FAN_WMS_VERSION,
-      orders: [
-        {
-          orderNumber: String(order.orderNumber),
-          orderDate: (order.orderDate || new Date().toISOString().split('T')[0]) + ' 00:00:00',
-
-          customerName: order.customer.name,
-          customerContactPerson: order.customer.name,
-          customerAddress: order.customer.address,
-          customerCity: order.customer.city,
-          customerCounty: order.customer.county,
-          customerCountryCode: order.customer.countryCode,
-          customerPhone: order.customer.phone,
-          customerEmail: order.customer.email,
-
-          paymentType: 'cash',
-	  currency: 'RON',
-	  transportPayment: 'expeditor',
-	  deliveryMode: 'rutier',
-	  contentType: 'document',
-
-carrier: 'FAN',
-service: 'Standard',
-
-          orderDetails: order.items.map(i => ({
-            productCode: i.sku,
-            quantity: i.quantity,
-            unitOfMeasure: 'BUC',
-            action: 'save'
-          })),
-
-          action: 'save'
-        }
-      ]
-    };
-
-    const token = await getFanToken();
-
-    const response = await axios.post(
-      `${process.env.FAN_WMS_BASE_URL}/orders/out`,
-      payload,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    res.json(response.data);
-
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).json(err.response?.data || err.message);
-  }
-});
-
 app.post('/fan/inbound/test', async (req, res) => {
   try {
     const data = req.body;
