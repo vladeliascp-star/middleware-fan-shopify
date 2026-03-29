@@ -2245,7 +2245,7 @@ async function syncStockFromFanToShopify(locationId) {
       const rawQuantity = availableBySku.has(sku) ? Number(availableBySku.get(sku)) : 0;
       const quantity = rawQuantity >= 6 ? rawQuantity : 0;
 
-            let inventoryItemId = getSavedInventoryItemIdBySku(sku);
+      let inventoryItemId = getSavedInventoryItemIdBySku(sku);
 
       if (!inventoryItemId) {
         const shopifyData = await getShopifyVariantInventoryBySku(sku);
@@ -2274,6 +2274,13 @@ async function syncStockFromFanToShopify(locationId) {
         locationId,
         quantity
       );
+
+      console.log(`[SYNC OK] ${sku} -> raw=${rawQuantity}, shopify=${quantity}`);
+    } catch (err) {
+      console.error('[SYNC ERROR]', err.message);
+    }
+  }
+}
 
 async function pollFanReturnReports() {
   const now = new Date();
