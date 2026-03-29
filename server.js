@@ -2169,6 +2169,12 @@ async function syncStockFromFanToShopify(locationId) {
 
   const products = fanData.products || fanData.items || [];
 
+  const fanSkus = new Set(
+    products
+      .map(p => String(p.productCode || '').trim())
+      .filter(Boolean)
+  );
+
   console.log('[FAN STOCK PRODUCTS]', products.length);
 
   for (const p of products) {
@@ -2200,6 +2206,37 @@ async function syncStockFromFanToShopify(locationId) {
     }
   }
 }
+console.log('[ZEROIZE START]');
+
+for (const productId in shopifyProductSkuMap) {
+  const skus = shopifyProductSkuMap[productId] || [];
+
+  for (const sku of skus) {
+    if (!fanSkus.has(sku)) {
+      try {
+        const shopifyData = await getShopifyVariantInventoryBySku(sku);
+
+        if (!shopifyData || !shopifyData.inventory_item_id) {
+          console.log('[ZEROIZE SKIP - NOT FOUND]', sku);
+          continue;
+        }
+
+        console.log('[ZEROIZE SET 0]', sku);
+
+        await setShopifyInventoryLevel(
+          shopifyData.inventory_item_id,
+          locationId,
+          0
+        );
+
+      } catch (err) {
+        console.error('[ZEROIZE ERROR]', sku, err.message);
+      }
+    }
+  }
+  console.log('[ZEROIZE DONE]');
+}
+
 
 async function pollFanReturnReports() {
   const now = new Date();
