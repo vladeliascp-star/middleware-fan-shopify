@@ -25,9 +25,11 @@ const processedProductWebhooks = new Set();
 const processedProductWebhooksFile = path.join(__dirname, 'processed_product_webhooks.json');
 const shopifyProductSkuMapFile = path.join(__dirname, 'shopify_product_sku_map.json');
 const shopifyInventoryItemMapFile = path.join(__dirname, 'shopify_inventory_item_map.json');
+const shopifyLastSyncedStockFile = path.join(__dirname, 'shopify_last_synced_stock.json');
 
 let shopifyProductSkuMap = {};
 let shopifyInventoryItemMap = {};
+let shopifyLastSyncedStock = {};
 function logInfo(scope, message, extra = null) {
   if (extra) {
     console.log(`[INFO] [${scope}] ${message}`, extra);
@@ -577,6 +579,46 @@ function saveInventoryItemIdBySku(sku, inventoryItemId) {
 
   shopifyInventoryItemMap[cleanSku] = cleanInventoryItemId;
   saveShopifyInventoryItemMap();
+}
+
+function loadShopifyLastSyncedStock() {
+  if (!fs.existsSync(shopifyLastSyncedStockFile)) {
+    shopifyLastSyncedStock = {};
+    return;
+  }
+
+  const raw = fs.readFileSync(shopifyLastSyncedStockFile, 'utf8');
+  shopifyLastSyncedStock = JSON.parse(raw || '{}');
+}
+
+function saveShopifyLastSyncedStock() {
+  fs.writeFileSync(
+    shopifyLastSyncedStockFile,
+    JSON.stringify(shopifyLastSyncedStock, null, 2)
+  );
+}
+
+function getLastSyncedStockBySku(sku) {
+  const cleanSku = String(sku || '').trim();
+
+  if (!cleanSku) {
+    return null;
+  }
+
+  return Object.prototype.hasOwnProperty.call(shopifyLastSyncedStock, cleanSku)
+    ? Number(shopifyLastSyncedStock[cleanSku])
+    : null;
+}
+
+function saveLastSyncedStockBySku(sku, quantity) {
+  const cleanSku = String(sku || '').trim();
+
+  if (!cleanSku) {
+    return;
+  }
+
+  shopifyLastSyncedStock[cleanSku] = Number(quantity);
+  saveShopifyLastSyncedStock();
 }
 
 function saveProductSkusFromShopifyProduct(product) {
@@ -2269,11 +2311,20 @@ async function syncStockFromFanToShopify(locationId) {
         });
       }
 
+      const lastSyncedQuantity = getLastSyncedStockBySku(sku);
+
+      if (lastSyncedQuantity === quantity) {
+        console.log(`[SYNC SKIP SAME STOCK] ${sku} -> raw=${rawQuantity}, shopify=${quantity}`);
+        continue;
+      }
+
       await setShopifyInventoryLevel(
         inventoryItemId,
         locationId,
         quantity
       );
+
+      saveLastSyncedStockBySku(sku, quantity);
 
       console.log(`[SYNC OK] ${sku} -> raw=${rawQuantity}, shopify=${quantity}`);
     } catch (err) {
@@ -2773,6 +2824,7 @@ loadProcessedReturns();
 loadProcessedProductWebhooks();
 loadShopifyProductSkuMap();
 loadShopifyInventoryItemMap();
+loadShopifyLastSyncedStock();
 loadFanProductsCache();
 
 pollFanReturnReports();
