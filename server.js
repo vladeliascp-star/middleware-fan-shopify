@@ -24,7 +24,10 @@ const processedReturnsFile = path.join(__dirname, 'processed_returns.json');
 const processedProductWebhooks = new Set();
 const processedProductWebhooksFile = path.join(__dirname, 'processed_product_webhooks.json');
 const shopifyProductSkuMapFile = path.join(__dirname, 'shopify_product_sku_map.json');
+const shopifyInventoryItemMapFile = path.join(__dirname, 'shopify_inventory_item_map.json');
+
 let shopifyProductSkuMap = {};
+let shopifyInventoryItemMap = {};
 function logInfo(scope, message, extra = null) {
   if (extra) {
     console.log(`[INFO] [${scope}] ${message}`, extra);
@@ -541,6 +544,39 @@ function saveShopifyProductSkuMap() {
     shopifyProductSkuMapFile,
     JSON.stringify(shopifyProductSkuMap, null, 2)
   );
+}
+
+function loadShopifyInventoryItemMap() {
+  if (!fs.existsSync(shopifyInventoryItemMapFile)) {
+    shopifyInventoryItemMap = {};
+    return;
+  }
+
+  const raw = fs.readFileSync(shopifyInventoryItemMapFile, 'utf8');
+  shopifyInventoryItemMap = JSON.parse(raw || '{}');
+}
+
+function saveShopifyInventoryItemMap() {
+  fs.writeFileSync(
+    shopifyInventoryItemMapFile,
+    JSON.stringify(shopifyInventoryItemMap, null, 2)
+  );
+}
+
+function getSavedInventoryItemIdBySku(sku) {
+  return shopifyInventoryItemMap[String(sku || '').trim()] || null;
+}
+
+function saveInventoryItemIdBySku(sku, inventoryItemId) {
+  const cleanSku = String(sku || '').trim();
+  const cleanInventoryItemId = String(inventoryItemId || '').trim();
+
+  if (!cleanSku || !cleanInventoryItemId) {
+    return;
+  }
+
+  shopifyInventoryItemMap[cleanSku] = cleanInventoryItemId;
+  saveShopifyInventoryItemMap();
 }
 
 function saveProductSkusFromShopifyProduct(product) {
@@ -2209,25 +2245,35 @@ async function syncStockFromFanToShopify(locationId) {
       const rawQuantity = availableBySku.has(sku) ? Number(availableBySku.get(sku)) : 0;
       const quantity = rawQuantity >= 6 ? rawQuantity : 0;
 
-      const shopifyData = await getShopifyVariantInventoryBySku(sku);
+            let inventoryItemId = getSavedInventoryItemIdBySku(sku);
 
-      if (!shopifyData || !shopifyData.inventory_item_id) {
-        console.log('[SKU NOT FOUND IN SHOPIFY]', sku);
-        continue;
+      if (!inventoryItemId) {
+        const shopifyData = await getShopifyVariantInventoryBySku(sku);
+
+        if (!shopifyData || !shopifyData.inventory_item_id) {
+          console.log('[SKU NOT FOUND IN SHOPIFY]', sku);
+          continue;
+        }
+
+        inventoryItemId = String(shopifyData.inventory_item_id);
+        saveInventoryItemIdBySku(sku, inventoryItemId);
+
+        console.log('[SHOPIFY INVENTORY MAP SAVED]', {
+          sku,
+          inventoryItemId
+        });
+      } else {
+        console.log('[SHOPIFY INVENTORY MAP HIT]', {
+          sku,
+          inventoryItemId
+        });
       }
 
       await setShopifyInventoryLevel(
-        shopifyData.inventory_item_id,
+        inventoryItemId,
         locationId,
         quantity
       );
-
-      console.log(`[SYNC OK] ${sku} -> raw=${rawQuantity}, shopify=${quantity}`);
-    } catch (err) {
-      console.error('[SYNC ERROR]', err.message);
-    }
-  }
-}
 
 async function pollFanReturnReports() {
   const now = new Date();
@@ -2719,6 +2765,7 @@ loadProcessedOrders();
 loadProcessedReturns();
 loadProcessedProductWebhooks();
 loadShopifyProductSkuMap();
+loadShopifyInventoryItemMap();
 loadFanProductsCache();
 
 pollFanReturnReports();
