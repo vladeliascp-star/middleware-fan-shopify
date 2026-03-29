@@ -2165,27 +2165,49 @@ async function validateProductUOMInFan(productCode) {
 }
 
 async function syncStockFromFanToShopify(locationId) {
-  const fanData = await getProductStockFromFan(1);
+  const allDetailsData = await getAllProductDetailsFromFan();
+  const availableStockData = await getProductStockFromFan(1);
 
-  const products = fanData.products || fanData.items || [];
+  const allProducts = allDetailsData.items || allDetailsData.products || [];
+  const availableProducts = availableStockData.products || availableStockData.items || [];
 
-  const fanSkus = new Set(
-    products
-      .map(p => String(p.productCode || '').trim())
-      .filter(Boolean)
-  );
+  console.log('[FAN DETAILS ALL PRODUCTS]', allProducts.length);
+  console.log('[FAN AVAILABLE STOCK PRODUCTS]', availableProducts.length);
 
-  console.log('[FAN STOCK PRODUCTS]', products.length);
+  const availableBySku = new Map();
 
-  for (const p of products) {
+  for (const p of availableProducts) {
+    const sku = String(p.productCode || '').trim();
+    if (!sku) {
+      continue;
+    }
+
+    const qty = Number(p.quantity || 0);
+    availableBySku.set(sku, qty);
+  }
+
+  for (const p of allProducts) {
     try {
-      const sku = p.productCode;
-      const rawQuantity = Number(p.quantity || p.available || 0);
-      const quantity = rawQuantity >= 6 ? rawQuantity : 0;
+      const sku = String(p.productCode || '').trim();
 
       if (!sku) {
         continue;
       }
+
+      const isActive = Number(p.isActive) === 1;
+      const hasInventoryTracking = Number(p.hasInventoryTracking) === 1;
+
+      if (!isActive || !hasInventoryTracking) {
+        console.log('[SYNC SKIP FAN FLAGS]', {
+          sku,
+          isActive: p.isActive,
+          hasInventoryTracking: p.hasInventoryTracking
+        });
+        continue;
+      }
+
+      const rawQuantity = availableBySku.has(sku) ? Number(availableBySku.get(sku)) : 0;
+      const quantity = rawQuantity >= 6 ? rawQuantity : 0;
 
       const shopifyData = await getShopifyVariantInventoryBySku(sku);
 
@@ -2205,37 +2227,6 @@ async function syncStockFromFanToShopify(locationId) {
       console.error('[SYNC ERROR]', err.message);
     }
   }
-
-  console.log('[ZEROIZE START]');
-
-  for (const productId in shopifyProductSkuMap) {
-    const skus = shopifyProductSkuMap[productId] || [];
-
-    for (const sku of skus) {
-      if (!fanSkus.has(sku)) {
-        try {
-          const shopifyData = await getShopifyVariantInventoryBySku(sku);
-
-          if (!shopifyData || !shopifyData.inventory_item_id) {
-            console.log('[ZEROIZE SKIP - NOT FOUND]', sku);
-            continue;
-          }
-
-          console.log('[ZEROIZE SET 0]', sku);
-
-          await setShopifyInventoryLevel(
-            shopifyData.inventory_item_id,
-            locationId,
-            0
-          );
-        } catch (err) {
-          console.error('[ZEROIZE ERROR]', sku, err.message);
-        }
-      }
-    }
-  }
-
-  console.log('[ZEROIZE DONE]');
 }
 
 async function pollFanReturnReports() {
