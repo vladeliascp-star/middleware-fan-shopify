@@ -2200,43 +2200,43 @@ async function syncStockFromFanToShopify(locationId) {
         quantity
       );
 
-      console.log(`[SYNC OK] ${sku} → raw=${rawQuantity}, shopify=${quantity}`);
+      console.log(`[SYNC OK] ${sku} -> raw=${rawQuantity}, shopify=${quantity}`);
     } catch (err) {
       console.error('[SYNC ERROR]', err.message);
     }
   }
-}
-console.log('[ZEROIZE START]');
 
-for (const productId in shopifyProductSkuMap) {
-  const skus = shopifyProductSkuMap[productId] || [];
+  console.log('[ZEROIZE START]');
 
-  for (const sku of skus) {
-    if (!fanSkus.has(sku)) {
-      try {
-        const shopifyData = await getShopifyVariantInventoryBySku(sku);
+  for (const productId in shopifyProductSkuMap) {
+    const skus = shopifyProductSkuMap[productId] || [];
 
-        if (!shopifyData || !shopifyData.inventory_item_id) {
-          console.log('[ZEROIZE SKIP - NOT FOUND]', sku);
-          continue;
+    for (const sku of skus) {
+      if (!fanSkus.has(sku)) {
+        try {
+          const shopifyData = await getShopifyVariantInventoryBySku(sku);
+
+          if (!shopifyData || !shopifyData.inventory_item_id) {
+            console.log('[ZEROIZE SKIP - NOT FOUND]', sku);
+            continue;
+          }
+
+          console.log('[ZEROIZE SET 0]', sku);
+
+          await setShopifyInventoryLevel(
+            shopifyData.inventory_item_id,
+            locationId,
+            0
+          );
+        } catch (err) {
+          console.error('[ZEROIZE ERROR]', sku, err.message);
         }
-
-        console.log('[ZEROIZE SET 0]', sku);
-
-        await setShopifyInventoryLevel(
-          shopifyData.inventory_item_id,
-          locationId,
-          0
-        );
-
-      } catch (err) {
-        console.error('[ZEROIZE ERROR]', sku, err.message);
       }
     }
   }
+
   console.log('[ZEROIZE DONE]');
 }
-
 
 async function pollFanReturnReports() {
   const now = new Date();
