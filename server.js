@@ -2285,7 +2285,7 @@ async function syncStockFromFanToShopify(locationId) {
       }
 
       const rawQuantity = availableBySku.has(sku) ? Number(availableBySku.get(sku)) : 0;
-      const quantity = rawQuantity >= 6 ? rawQuantity : 0;
+      const quantity = rawQuantity;
 
       let inventoryItemId = getSavedInventoryItemIdBySku(sku);
 
