@@ -2758,6 +2758,8 @@ app.post('/webhooks/shopify/products/delete', async (req, res) => {
  * SHOPIFY WEBHOOK - ORDER CREATE
  */
 app.post('/webhooks/shopify/orders/create', async (req, res) => {
+  let currentOrderId = null;
+
   try {
 
     if (!verifyShopifyWebhook(req)) {
@@ -2766,49 +2768,65 @@ app.post('/webhooks/shopify/orders/create', async (req, res) => {
     }
 
     const webhookOrder = JSON.parse(req.body.toString('utf8'));
+    currentOrderId = webhookOrder?.id || null;
 
-logInfo('SHOPIFY_WEBHOOK', 'received');
-logInfo('SHOPIFY_WEBHOOK', 'order id', webhookOrder.id);
+    logInfo('SHOPIFY_WEBHOOK', 'received');
+    logInfo('SHOPIFY_WEBHOOK', 'order id', webhookOrder.id);
 
-if (processedOrders.has(String(webhookOrder.id))) {
-  logInfo('SHOPIFY_WEBHOOK', 'duplicate order blocked', webhookOrder.id);
-  return res.status(200).send('Duplicate ignored');
-}
-
-const token = await getShopifyToken();
-
-const shopifyResponse = await axios.get(
-  `https://${process.env.SHOPIFY_SHOP}.myshopify.com/admin/api/2023-10/orders/${webhookOrder.id}.json`,
-  {
-    headers: {
-      'X-Shopify-Access-Token': token,
-      'Content-Type': 'application/json'
+    if (processedOrders.has(String(webhookOrder.id))) {
+      logInfo('SHOPIFY_WEBHOOK', 'duplicate order blocked', webhookOrder.id);
+      return res.status(200).send('Duplicate ignored');
     }
-  }
-);
 
-const order = shopifyResponse.data.order;
+    const token = await getShopifyToken();
 
-const fanResponse = await sendOrderToFan(order);
+    const shopifyResponse = await axios.get(
+      `https://${process.env.SHOPIFY_SHOP}.myshopify.com/admin/api/2023-10/orders/${webhookOrder.id}.json`,
+      {
+        headers: {
+          'X-Shopify-Access-Token': token,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
-if (fanResponse.successful && fanResponse.successful.includes(String(order.id))) {
-  processedOrders.add(String(order.id));
-  logInfo('SHOPIFY_WEBHOOK', 'order marked as processed', order.id);
+    const order = shopifyResponse.data.order;
 
-  fs.writeFileSync(
-    processedOrdersFile,
-    JSON.stringify(Array.from(processedOrders), null, 2)
-  );
-}
-logInfo('SHOPIFY_WEBHOOK', 'fan response received', fanResponse);
+    logInfo('SHOPIFY_WEBHOOK', 'sending order to FAN', {
+      orderId: order.id
+    });
 
-res.status(200).send('OK');
+    const fanResponse = await sendOrderToFan(order);
+
+    if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
+      logError('SHOPIFY_WEBHOOK', 'FAN did not confirm order as successful', {
+        orderId: order.id,
+        fanResponse
+      });
+    }
+
+    if (fanResponse.successful && fanResponse.successful.includes(String(order.id))) {
+      processedOrders.add(String(order.id));
+      logInfo('SHOPIFY_WEBHOOK', 'order marked as processed', order.id);
+
+      fs.writeFileSync(
+        processedOrdersFile,
+        JSON.stringify(Array.from(processedOrders), null, 2)
+      );
+    }
+
+    logInfo('SHOPIFY_WEBHOOK', 'fan response received', fanResponse);
+
+    res.status(200).send('OK');
   } catch (err) {
-    console.error('[SHOPIFY WEBHOOK ERROR]', err.message);
+    logError('SHOPIFY_WEBHOOK', 'webhook error', {
+      orderId: currentOrderId,
+      message: err.message,
+      response: err.response?.data || null
+    });
+
     res.status(500).send('Webhook error');
   }
-});
-
 
 /**
  * HEALTH
