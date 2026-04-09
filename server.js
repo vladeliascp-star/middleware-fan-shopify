@@ -2827,6 +2827,7 @@ app.post('/webhooks/shopify/orders/create', async (req, res) => {
 
     res.status(500).send('Webhook error');
   }
+});
 
 /**
  * HEALTH
