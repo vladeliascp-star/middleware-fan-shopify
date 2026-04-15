@@ -2885,19 +2885,7 @@ app.post('/webhooks/shopify/orders/paid', async (req, res) => {
       return res.status(200).send('Duplicate ignored');
     }
 
-    const token = await getShopifyToken();
-
-    const shopifyResponse = await axios.get(
-      `https://${process.env.SHOPIFY_SHOP}.myshopify.com/admin/api/2023-10/orders/${webhookOrder.id}.json`,
-      {
-        headers: {
-          'X-Shopify-Access-Token': token,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    const order = shopifyResponse.data.order;
+    const order = webhookOrder;
 
     console.log('[ORDER PAID DEBUG]', {
       orderId: order.id,
