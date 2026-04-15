@@ -1135,6 +1135,24 @@ function verifyShopifyWebhook(req) {
   );
 }
 
+function verifyShopifyWebhook(req) {
+  const hmacHeader = req.headers['x-shopify-hmac-sha256'];
+
+  if (!hmacHeader) {
+    return false;
+  }
+
+  const digest = crypto
+    .createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET)
+    .update(req.body)
+    .digest('base64');
+
+  return crypto.timingSafeEqual(
+    Buffer.from(digest, 'utf8'),
+    Buffer.from(hmacHeader, 'utf8')
+  );
+}
+
 function readInboundCounter() {
   try {
     if (!fs.existsSync(COUNTER_FILE)) {
@@ -2761,7 +2779,6 @@ app.post('/webhooks/shopify/orders/create', async (req, res) => {
   let currentOrderId = null;
 
   try {
-
     if (!verifyShopifyWebhook(req)) {
       logError('SHOPIFY_WEBHOOK', 'invalid hmac');
       return res.status(401).send('Invalid signature');
@@ -2791,6 +2808,24 @@ app.post('/webhooks/shopify/orders/create', async (req, res) => {
     );
 
     const order = shopifyResponse.data.order;
+
+    console.log('[PAYMENT DEBUG]', {
+      orderId: order.id,
+      financial_status: order.financial_status,
+      total_outstanding: order.total_outstanding,
+      payment_gateway_names: order.payment_gateway_names,
+      gateway_names: order.gateway_names
+    });
+
+    if (isNetopiaOrder(order) && !isPaidOrder(order)) {
+      logInfo('SHOPIFY_WEBHOOK', 'netopia order not paid yet - skip FAN send for now', {
+        orderId: order.id,
+        financialStatus: order.financial_status,
+        gateways: order.payment_gateway_names || order.gateway_names || []
+      });
+
+      return res.status(200).send('Netopia order pending payment - ignored for now');
+    }
 
     logInfo('SHOPIFY_WEBHOOK', 'sending order to FAN', {
       orderId: order.id
@@ -2826,6 +2861,86 @@ app.post('/webhooks/shopify/orders/create', async (req, res) => {
     });
 
     res.status(500).send('Webhook error');
+  }
+});
+
+app.post('/webhooks/shopify/orders/paid', async (req, res) => {
+  let currentOrderId = null;
+
+  try {
+    if (!verifyShopifyWebhook(req)) {
+      logError('SHOPIFY_ORDER_PAID', 'invalid hmac');
+      return res.status(401).send('Invalid signature');
+    }
+
+    const webhookOrder = JSON.parse(req.body.toString('utf8'));
+    currentOrderId = webhookOrder?.id || null;
+
+    logInfo('SHOPIFY_ORDER_PAID', 'received', {
+      orderId: webhookOrder.id
+    });
+
+    if (processedOrders.has(String(webhookOrder.id))) {
+      logInfo('SHOPIFY_ORDER_PAID', 'duplicate order blocked', webhookOrder.id);
+      return res.status(200).send('Duplicate ignored');
+    }
+
+    const token = await getShopifyToken();
+
+    const shopifyResponse = await axios.get(
+      `https://${process.env.SHOPIFY_SHOP}.myshopify.com/admin/api/2023-10/orders/${webhookOrder.id}.json`,
+      {
+        headers: {
+          'X-Shopify-Access-Token': token,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    const order = shopifyResponse.data.order;
+
+    console.log('[ORDER PAID DEBUG]', {
+      orderId: order.id,
+      financial_status: order.financial_status,
+      total_outstanding: order.total_outstanding,
+      payment_gateway_names: order.payment_gateway_names,
+      gateway_names: order.gateway_names
+    });
+
+    logInfo('SHOPIFY_ORDER_PAID', 'sending order to FAN', {
+      orderId: order.id
+    });
+
+    const fanResponse = await sendOrderToFan(order);
+
+    if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
+      logError('SHOPIFY_ORDER_PAID', 'FAN did not confirm order as successful', {
+        orderId: order.id,
+        fanResponse
+      });
+    }
+
+    if (fanResponse.successful && fanResponse.successful.includes(String(order.id))) {
+      processedOrders.add(String(order.id));
+      logInfo('SHOPIFY_ORDER_PAID', 'order marked as processed', order.id);
+
+      fs.writeFileSync(
+        processedOrdersFile,
+        JSON.stringify(Array.from(processedOrders), null, 2)
+      );
+    }
+
+    logInfo('SHOPIFY_ORDER_PAID', 'fan response received', fanResponse);
+
+    return res.status(200).send('OK');
+  } catch (err) {
+    logError('SHOPIFY_ORDER_PAID', 'webhook error', {
+      orderId: currentOrderId,
+      message: err.message,
+      response: err.response?.data || null
+    });
+
+    return res.status(500).send('Webhook error');
   }
 });
 
