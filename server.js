@@ -1135,22 +1135,17 @@ function verifyShopifyWebhook(req) {
   );
 }
 
-function verifyShopifyWebhook(req) {
-  const hmacHeader = req.headers['x-shopify-hmac-sha256'];
+function isNetopiaOrder(order) {
+  const gatewayNames = [
+    ...(Array.isArray(order?.payment_gateway_names) ? order.payment_gateway_names : []),
+    ...(Array.isArray(order?.gateway_names) ? order.gateway_names : [])
+  ].map(x => String(x || '').toLowerCase());
 
-  if (!hmacHeader) {
-    return false;
-  }
+  return gatewayNames.some(name => name.includes('netopia'));
+}
 
-  const digest = crypto
-    .createHmac('sha256', process.env.SHOPIFY_WEBHOOK_SECRET)
-    .update(req.body)
-    .digest('base64');
-
-  return crypto.timingSafeEqual(
-    Buffer.from(digest, 'utf8'),
-    Buffer.from(hmacHeader, 'utf8')
-  );
+function isPaidOrder(order) {
+  return String(order?.financial_status || '').toLowerCase() === 'paid';
 }
 
 function readInboundCounter() {
