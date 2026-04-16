@@ -3087,54 +3087,65 @@ app.post('/webhooks/shopify/orders/paid', async (req, res) => {
       orderId: webhookOrder.id
     });
 
-    if (processedOrders.has(String(webhookOrder.id))) {
-      logInfo('SHOPIFY_ORDER_PAID', 'duplicate order blocked', webhookOrder.id);
-      return res.status(200).send('Duplicate ignored');
-    }
-
-    const order = webhookOrder;
+        const order = webhookOrder;
+    const alreadyProcessedInFan = processedOrders.has(String(order.id));
 
     console.log('[ORDER PAID DEBUG]', {
       orderId: order.id,
       financial_status: order.financial_status,
       total_outstanding: order.total_outstanding,
       payment_gateway_names: order.payment_gateway_names,
-      gateway_names: order.gateway_names
+      gateway_names: order.gateway_names,
+      alreadyProcessedInFan
     });
 
-    logInfo('SHOPIFY_ORDER_PAID', 'sending order to FAN', {
-      orderId: order.id
-    });
-
-    const fanResponse = await sendOrderToFan(order);
-
-    if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
-      logError('SHOPIFY_ORDER_PAID', 'FAN did not confirm order as successful', {
-        orderId: order.id,
-        fanResponse
+    if (alreadyProcessedInFan) {
+      logInfo('SHOPIFY_ORDER_PAID', 'skip FAN send - already processed', {
+        orderId: order.id
       });
+    } else {
+      logInfo('SHOPIFY_ORDER_PAID', 'sending order to FAN', {
+        orderId: order.id
+      });
+
+      const fanResponse = await sendOrderToFan(order);
+
+      if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
+        logError('SHOPIFY_ORDER_PAID', 'FAN did not confirm order as successful', {
+          orderId: order.id,
+          fanResponse
+        });
+      }
+
+      if (fanResponse.successful && fanResponse.successful.includes(String(order.id))) {
+        processedOrders.add(String(order.id));
+        logInfo('SHOPIFY_ORDER_PAID', 'order marked as processed', order.id);
+
+        fs.writeFileSync(
+          processedOrdersFile,
+          JSON.stringify(Array.from(processedOrders), null, 2)
+        );
+      }
+
+      logInfo('SHOPIFY_ORDER_PAID', 'fan response received', fanResponse);
     }
 
-    if (fanResponse.successful && fanResponse.successful.includes(String(order.id))) {
-      processedOrders.add(String(order.id));
-      logInfo('SHOPIFY_ORDER_PAID', 'order marked as processed', order.id);
-
-      fs.writeFileSync(
-        processedOrdersFile,
-        JSON.stringify(Array.from(processedOrders), null, 2)
-      );
-    }
-
-    logInfo('SHOPIFY_ORDER_PAID', 'fan response received', fanResponse);
-
-handleOblioCollectForPaidOrder(order).catch(err => {
-  logError('SHOPIFY_ORDER_PAID', 'oblio collect async error', {
-    orderId: order.id,
-    message: err.message,
-    response: err.response?.data || null
+if (isNetopiaOrder(order)) {
+  handleOblioCollectForPaidOrder(order).catch(err => {
+    logError('SHOPIFY_ORDER_PAID', 'oblio collect async error', {
+      orderId: order.id,
+      message: err.message,
+      response: err.response?.data || null
+    });
   });
-});
-    return res.status(200).send('OK');
+} else {
+  logInfo('SHOPIFY_ORDER_PAID', 'oblio collect skipped - non-netopia order', {
+    orderId: order.id,
+    gateways: order.payment_gateway_names || order.gateway_names || []
+  });
+}
+
+return res.status(200).send('OK');
   } catch (err) {
     logError('SHOPIFY_ORDER_PAID', 'webhook error', {
       orderId: currentOrderId,
