@@ -12,7 +12,217 @@ app.use('/webhooks/shopify', express.raw({ type: '*/*' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 👇 AICI PUI CODUL
+let oblioToken = null;
+let oblioTokenExpiresAt = 0;
+
+function getOblioClientId() {
+  return process.env.OBLIO_CLIENT_ID;
+}
+
+function getOblioClientSecret() {
+  return process.env.OBLIO_CLIENT_SECRET;
+}
+
+function getOblioCif() {
+  return process.env.OBLIO_CIF;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function getOblioToken() {
+  if (oblioToken && Date.now() < oblioTokenExpiresAt - 60000) {
+    return oblioToken;
+  }
+
+  const params = new URLSearchParams();
+  params.append('client_id', getOblioClientId());
+  params.append('client_secret', getOblioClientSecret());
+
+  const response = await axios.post(
+    'https://www.oblio.eu/api/authorize/token',
+    params,
+    {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      timeout: 15000
+    }
+  );
+
+  const accessToken = response.data?.access_token;
+  const expiresIn = Number(response.data?.expires_in || 3600);
+
+  if (!accessToken) {
+    throw new Error('Oblio access_token lipsa');
+  }
+
+  oblioToken = accessToken;
+  oblioTokenExpiresAt = Date.now() + (expiresIn * 1000);
+
+  return oblioToken;
+}
+
+async function listOblioInvoicesForOrder(orderName) {
+  const token = await getOblioToken();
+
+  const response = await axios.get(
+    'https://www.oblio.eu/api/docs/invoice/list',
+    {
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      params: {
+        cif: getOblioCif()
+      },
+      timeout: 15000
+    }
+  );
+
+  const invoices = Array.isArray(response.data?.data) ? response.data.data : [];
+
+  return invoices.filter(inv => {
+    const mentions = String(inv?.mentions || '');
+    const clientName = String(inv?.client?.name || '');
+    const noticeNumber = String(inv?.noticeNumber || '');
+    const orderNumber = String(inv?.number || '');
+
+    return (
+      mentions.includes(orderName) ||
+      noticeNumber.includes(orderName) ||
+      clientName.includes(orderName) ||
+      orderNumber === orderName.replace('#', '')
+    );
+  });
+}
+
+async function getOblioInvoiceDetails(seriesName, number) {
+  const token = await getOblioToken();
+
+  const response = await axios.get(
+    'https://www.oblio.eu/api/docs/invoice',
+    {
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      params: {
+        cif: getOblioCif(),
+        seriesName,
+        number
+      },
+      timeout: 15000
+    }
+  );
+
+  return response.data?.data || null;
+}
+
+function oblioInvoiceAlreadyCollected(invoiceDetails) {
+  const collects = Array.isArray(invoiceDetails?.collects) ? invoiceDetails.collects : [];
+  return collects.length > 0;
+}
+
+async function collectOblioInvoice(invoice, order) {
+  const token = await getOblioToken();
+
+  const form = new URLSearchParams();
+  form.append('cif', getOblioCif());
+  form.append('seriesName', String(invoice.seriesName));
+  form.append('number', String(invoice.number));
+  form.append('collect[type]', 'Card');
+  form.append('collect[documentNumber]', `Shopify ${order.name || ('#' + order.order_number)}`);
+  form.append('collect[issueDate]', new Date().toISOString().slice(0, 10));
+
+  await axios.put(
+    'https://www.oblio.eu/api/docs/invoice/collect',
+    form,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      timeout: 15000
+    }
+  );
+}
+
+async function handleOblioCollectForPaidOrder(order) {
+  const orderName = String(order?.name || `#${order?.order_number || ''}`).trim();
+
+  if (!orderName || orderName === '#') {
+    logError('OBLIO_COLLECT', 'order name lipsa', {
+      orderId: order?.id || null
+    });
+    return;
+  }
+
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    try {
+      logInfo('OBLIO_COLLECT', 'search invoice attempt', {
+        orderId: order.id,
+        orderName,
+        attempt
+      });
+
+      const invoices = await listOblioInvoicesForOrder(orderName);
+
+      if (!invoices.length) {
+        logInfo('OBLIO_COLLECT', 'invoice not found yet', {
+          orderId: order.id,
+          orderName,
+          attempt
+        });
+
+        await sleep(15000);
+        continue;
+      }
+
+      const invoice = invoices[0];
+
+      const invoiceDetails = await getOblioInvoiceDetails(
+        invoice.seriesName,
+        invoice.number
+      );
+
+      if (oblioInvoiceAlreadyCollected(invoiceDetails)) {
+        logInfo('OBLIO_COLLECT', 'invoice already collected - skip', {
+          orderId: order.id,
+          orderName,
+          seriesName: invoice.seriesName,
+          number: invoice.number
+        });
+        return;
+      }
+
+      await collectOblioInvoice(invoice, order);
+
+      logInfo('OBLIO_COLLECT', 'invoice collected successfully', {
+        orderId: order.id,
+        orderName,
+        seriesName: invoice.seriesName,
+        number: invoice.number
+      });
+
+      return;
+    } catch (err) {
+      logError('OBLIO_COLLECT', 'attempt failed', {
+        orderId: order?.id || null,
+        orderName,
+        attempt,
+        message: err.message,
+        response: err.response?.data || null
+      });
+
+      await sleep(10000);
+    }
+  }
+
+  logError('OBLIO_COLLECT', 'failed after retries', {
+    orderId: order?.id || null,
+    orderName
+  });
+}
 
 let shopifyToken = null;
 let shopifyTokenExpiresAt = 0;
@@ -2230,6 +2440,8 @@ async function getProductDetailsFromFan(productCode) {
   return response.data;
 }
 
+
+
 async function validateProductUOMInFan(productCode) {
   const response = await getProductUnitsOfMeasureFromFan(productCode);
 
@@ -2915,6 +3127,13 @@ app.post('/webhooks/shopify/orders/paid', async (req, res) => {
 
     logInfo('SHOPIFY_ORDER_PAID', 'fan response received', fanResponse);
 
+handleOblioCollectForPaidOrder(order).catch(err => {
+  logError('SHOPIFY_ORDER_PAID', 'oblio collect async error', {
+    orderId: order.id,
+    message: err.message,
+    response: err.response?.data || null
+  });
+});
     return res.status(200).send('OK');
   } catch (err) {
     logError('SHOPIFY_ORDER_PAID', 'webhook error', {
