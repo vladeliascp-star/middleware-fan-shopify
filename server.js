@@ -2264,11 +2264,11 @@ async function syncFanShipmentToShopify(orderId) {
   const awb = shipmentData.awb;
 
   const result = await createShopifyFulfillmentForOrder(
-    orderId,
-    awb,
-    'FAN Courier',
-    `https://www.fancourier.ro/awb-tracking/${awb}`
-  );
+  orderId,
+  awb,
+  'FAN Courier',
+  `https://www.fancourier.ro/awb-tracking/?tracking=${awb}`
+);
 
   // 🔥 AICI ESTE MODIFICAREA
   await autoFulfillSGR(orderId);
