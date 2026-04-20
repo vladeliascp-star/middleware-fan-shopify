@@ -3242,22 +3242,37 @@ setInterval(async () => {
     const orders = response.data.orders || [];
 
     for (const order of orders) {
-      if (order.tags && String(order.tags).includes('fan-awb-done')) {
-        continue;
+  if (order.tags && String(order.tags).includes('fan-awb-done')) {
+    continue;
+  }
+
+  try {
+    const result = await syncFanShipmentToShopify(order.id);
+
+    if (result.success && result.ready) {
+      if (!result.alreadyFulfilled) {
+        console.log(`[FULFILLMENT CREATED] ${order.id} AWB=${result.awb}`);
+      } else {
+        console.log(`[FULFILLMENT ALREADY DONE] ${order.id}`);
       }
 
       try {
-       const result = await syncFanShipmentToShopify(order.id);
-
-        if (result.success && result.ready && !result.alreadyFulfilled) {
-          console.log(`[FULFILLMENT CREATED] ${order.id} AWB=${result.awb}`);
-          await tagOrderAsSynced(order.id);
-        }
-
+        await tagOrderAsSynced(order.id);
+        console.log('[FAN AWB TAG ADDED]', order.id);
       } catch (err) {
-        console.error('[SYNC ERROR ORDER]', order.id, err.message);
+        console.error('[FAN AWB TAG ERROR]', {
+          orderId: order.id,
+          message: err.message,
+          status: err.response?.status || null,
+          response: err.response?.data || null
+        });
       }
     }
+
+  } catch (err) {
+    console.error('[SYNC ERROR ORDER]', order.id, err.message);
+  }
+}
 
     console.log('[FAN SYNC DONE]');
 
