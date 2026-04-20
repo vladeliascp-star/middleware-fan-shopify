@@ -1155,12 +1155,15 @@ app.get('/fan/send-order/:id', async (req, res) => {
 
     const fanResponse = await sendOrderToFan(order);
 
-if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
-  logError('SHOPIFY_ORDER_PAID', 'FAN did not confirm order as successful', {
-    orderId: order.id,
-    fanResponse
-  });
-}
+    console.log('FAN RESPONSE:', JSON.stringify(fanResponse, null, 2));
+
+    res.json(fanResponse);
+  } catch (err) {
+    console.error(err.response?.data || err.message);
+    res.status(500).json({ error: 'FAN send failed' });
+  }
+});
+
 function extractProductsForWMS(order) {
   return order.line_items
     .filter(item => item.requires_shipping)
@@ -3090,7 +3093,7 @@ app.post('/webhooks/shopify/orders/paid', async (req, res) => {
       orderId: webhookOrder.id
     });
 
-        const order = webhookOrder;
+    const order = webhookOrder;
     const alreadyProcessedInFan = processedOrders.has(String(order.id));
 
     console.log('[ORDER PAID DEBUG]', {
@@ -3113,10 +3116,10 @@ app.post('/webhooks/shopify/orders/paid', async (req, res) => {
 
       const fanResponse = await sendOrderToFan(order);
 
-logInfo('SHOPIFY_ORDER_PAID', 'fan raw response', {
-  orderId: order.id,
-  fanResponse
-});
+      logInfo('SHOPIFY_ORDER_PAID', 'fan raw response', {
+        orderId: order.id,
+        fanResponse
+      });
 
       if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
         logError('SHOPIFY_ORDER_PAID', 'FAN did not confirm order as successful', {
@@ -3138,22 +3141,22 @@ logInfo('SHOPIFY_ORDER_PAID', 'fan raw response', {
       logInfo('SHOPIFY_ORDER_PAID', 'fan response received', fanResponse);
     }
 
-if (isNetopiaOrder(order)) {
-  handleOblioCollectForPaidOrder(order).catch(err => {
-    logError('SHOPIFY_ORDER_PAID', 'oblio collect async error', {
-      orderId: order.id,
-      message: err.message,
-      response: err.response?.data || null
-    });
-  });
-} else {
-  logInfo('SHOPIFY_ORDER_PAID', 'oblio collect skipped - non-netopia order', {
-    orderId: order.id,
-    gateways: order.payment_gateway_names || order.gateway_names || []
-  });
-}
+    if (isNetopiaOrder(order)) {
+      handleOblioCollectForPaidOrder(order).catch(err => {
+        logError('SHOPIFY_ORDER_PAID', 'oblio collect async error', {
+          orderId: order.id,
+          message: err.message,
+          response: err.response?.data || null
+        });
+      });
+    } else {
+      logInfo('SHOPIFY_ORDER_PAID', 'oblio collect skipped - non-netopia order', {
+        orderId: order.id,
+        gateways: order.payment_gateway_names || order.gateway_names || []
+      });
+    }
 
-return res.status(200).send('OK');
+    return res.status(200).send('OK');
   } catch (err) {
     logError('SHOPIFY_ORDER_PAID', 'webhook error', {
       orderId: currentOrderId,
@@ -3164,7 +3167,6 @@ return res.status(200).send('OK');
     return res.status(500).send('Webhook error');
   }
 });
-
 /**
  * HEALTH
  */
