@@ -1155,14 +1155,12 @@ app.get('/fan/send-order/:id', async (req, res) => {
 
     const fanResponse = await sendOrderToFan(order);
 
-    console.log('FAN RESPONSE:', JSON.stringify(fanResponse, null, 2));
-
-    res.json(fanResponse);
-  } catch (err) {
-    console.error(err.response?.data || err.message);
-    res.status(500).json({ error: 'FAN send failed' });
-  }
-});
+if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
+  logError('SHOPIFY_ORDER_PAID', 'FAN did not confirm order as successful', {
+    orderId: order.id,
+    fanResponse
+  });
+}
 function extractProductsForWMS(order) {
   return order.line_items
     .filter(item => item.requires_shipping)
@@ -3040,12 +3038,17 @@ app.post('/webhooks/shopify/orders/create', async (req, res) => {
 
     const fanResponse = await sendOrderToFan(order);
 
-    if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
-      logError('SHOPIFY_WEBHOOK', 'FAN did not confirm order as successful', {
-        orderId: order.id,
-        fanResponse
-      });
-    }
+logInfo('SHOPIFY_WEBHOOK', 'fan raw response', {
+  orderId: order.id,
+  fanResponse
+});
+
+if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
+  logError('SHOPIFY_WEBHOOK', 'FAN did not confirm order as successful', {
+    orderId: order.id,
+    fanResponse
+  });
+}
 
     if (fanResponse.successful && fanResponse.successful.includes(String(order.id))) {
       processedOrders.add(String(order.id));
@@ -3109,6 +3112,11 @@ app.post('/webhooks/shopify/orders/paid', async (req, res) => {
       });
 
       const fanResponse = await sendOrderToFan(order);
+
+logInfo('SHOPIFY_ORDER_PAID', 'fan raw response', {
+  orderId: order.id,
+  fanResponse
+});
 
       if (!(fanResponse.successful && fanResponse.successful.includes(String(order.id)))) {
         logError('SHOPIFY_ORDER_PAID', 'FAN did not confirm order as successful', {
