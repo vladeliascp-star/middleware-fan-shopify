@@ -2551,14 +2551,7 @@ async function syncStockFromFanToShopify(locationId) {
         });
       }
 
-      const lastSyncedQuantity = getLastSyncedStockBySku(sku);
-
-      if (lastSyncedQuantity === quantity) {
-        console.log(`[SYNC SKIP SAME STOCK] ${sku} -> raw=${rawQuantity}, shopify=${quantity}`);
-        continue;
-      }
-
-      await setShopifyInventoryLevel(
+            await setShopifyInventoryLevel(
         inventoryItemId,
         locationId,
         quantity
