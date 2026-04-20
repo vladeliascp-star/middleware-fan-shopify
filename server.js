@@ -1355,6 +1355,20 @@ function isNetopiaOrder(order) {
   return gatewayNames.some(name => name.includes('netopia'));
 }
 
+function isCodOrder(order) {
+  const gatewayNames = [
+    ...(Array.isArray(order?.payment_gateway_names) ? order.payment_gateway_names : []),
+    ...(Array.isArray(order?.gateway_names) ? order.gateway_names : [])
+  ].map(x => String(x || '').toLowerCase());
+
+  return gatewayNames.some(name =>
+    name.includes('cash on delivery') ||
+    name.includes('(cod)') ||
+    name === 'cod' ||
+    name.includes('ramburs')
+  );
+}
+
 function isPaidOrder(order) {
   return String(order?.financial_status || '').toLowerCase() === 'paid';
 }
@@ -3104,6 +3118,15 @@ app.post('/webhooks/shopify/orders/paid', async (req, res) => {
       gateway_names: order.gateway_names,
       alreadyProcessedInFan
     });
+
+if (isCodOrder(order)) {
+  logInfo('SHOPIFY_ORDER_PAID', 'skip FAN send - COD order paid later in Shopify', {
+    orderId: order.id,
+    gateways: order.payment_gateway_names || order.gateway_names || []
+  });
+
+  return res.status(200).send('COD order paid update - ignored for FAN send');
+}
 
     if (alreadyProcessedInFan) {
       logInfo('SHOPIFY_ORDER_PAID', 'skip FAN send - already processed', {
