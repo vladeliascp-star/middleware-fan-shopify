@@ -3245,7 +3245,15 @@ loadProcessedProductWebhooks();
 loadShopifyProductSkuMap();
 loadShopifyInventoryItemMap();
 loadShopifyLastSyncedStock();
-loadFanProductsCache();
+(async () => {
+  try {
+    console.log('[STARTUP] FAN cache load start');
+    await loadFanProductsCache();
+    console.log('[STARTUP] FAN cache load done');
+  } catch (err) {
+    console.error('[STARTUP] FAN cache load failed', err.message);
+  }
+})();
 
 pollFanReturnReports();
 setInterval(pollFanReturnReports, 5 * 60 * 1000);
