@@ -10,12 +10,21 @@ const COUNTER_FILE = path.join(__dirname, 'inbound-counter.json');
 const app = express();
 app.use('/webhooks/shopify', express.raw({ type: '*/*' }));
 app.use(express.json());
-app.use([
-  '/fan',
-  '/shopify',
-  '/sync',
-  '/reconcile'
-], requireApiKey);
+
+app.use('/fan', requireAdminBasicAuth);
+app.use('/shopify', requireAdminBasicAuth);
+app.use('/sync', requireAdminBasicAuth);
+app.use('/reconcile', requireAdminBasicAuth);
+app.use('/fan-to-shopify', requireAdminBasicAuth);
+
+app.get('/', requireAdminBasicAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/index.html', requireAdminBasicAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 let oblioToken = null;
@@ -268,6 +277,29 @@ function requireApiKey(req, res, next) {
 
   if (!key || key !== process.env.ADMIN_API_KEY) {
     return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  next();
+}
+function requireAdminBasicAuth(req, res, next) {
+  const authHeader = req.headers.authorization || '';
+
+  if (!authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Admin Area"');
+    return res.status(401).send('Authentication required');
+  }
+
+  const base64Credentials = authHeader.split(' ')[1];
+  const credentials = Buffer.from(base64Credentials, 'base64').toString('utf8');
+
+  const [username, password] = credentials.split(':');
+
+  if (
+    username !== process.env.ADMIN_USER ||
+    password !== process.env.ADMIN_PASSWORD
+  ) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Admin Area"');
+    return res.status(401).send('Unauthorized');
   }
 
   next();
