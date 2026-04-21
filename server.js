@@ -10,6 +10,12 @@ const COUNTER_FILE = path.join(__dirname, 'inbound-counter.json');
 const app = express();
 app.use('/webhooks/shopify', express.raw({ type: '*/*' }));
 app.use(express.json());
+app.use([
+  '/fan',
+  '/shopify',
+  '/sync',
+  '/reconcile'
+], requireApiKey);
 app.use(express.static(path.join(__dirname, 'public')));
 
 let oblioToken = null;
@@ -256,6 +262,15 @@ function logError(scope, message, extra = null) {
   }
 
   console.error(`[ERROR] [${scope}] ${message}`);
+}
+function requireApiKey(req, res, next) {
+  const key = req.headers['x-api-key'];
+
+  if (!key || key !== process.env.ADMIN_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  next();
 }
 function loadProcessedOrders() {
   if (!fs.existsSync(processedOrdersFile)) {
