@@ -1318,14 +1318,14 @@ function buildFanInboundPayload(data) {
   }
 
   return {
-    orderDate: data.orderDate,
-    orderNumber: data.orderNumber,
-    erpOrderNumber: null,
-    isReturn: data.isReturn === true,
-    deliveryDate: data.deliveryDate,
-    supplier: data.supplier,
-    supplierName: data.supplierName,
-    orderDetails: data.items.map(item => {
+  orderDate: data.orderDate,
+  orderNumber: data.orderNumber,
+  erpOrderNumber: data.originalOrderNumber || null,
+  isReturn: data.isReturn === true,
+  deliveryDate: data.deliveryDate,
+  supplier: data.supplier,
+  supplierName: data.supplierName,
+  orderDetails: data.items.map(item => {
       if (!item.productCode) {
         throw new Error('Inbound: productCode este obligatoriu pentru fiecare produs');
       }
@@ -2007,6 +2007,13 @@ app.post('/fan/returns/test', async (req, res) => {
     const data = req.body;
 
     data.isReturn = true;
+
+    console.log('[FAN RETURN INPUT]', {
+      orderNumber: data.orderNumber || null,
+      originalOrderNumber: data.originalOrderNumber || null,
+      awb: data.awb || null,
+      itemsCount: Array.isArray(data.items) ? data.items.length : 0
+    });
 
     const response = await sendInboundToFan(data);
 

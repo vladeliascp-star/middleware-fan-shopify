@@ -59,12 +59,12 @@
 
     <!-- TAB NAV -->
     <div class="tabs">
-      <button class="tab-button is-active" data-tab-target="outbound">Outbound</button>
-      <button class="tab-button" data-tab-target="inbound">Inbound</button>
-      <button class="tab-button" data-tab-target="fulfillment">Fulfillment</button>
-      <button class="tab-button" data-tab-target="products">Products</button>
-      <button class="tab-button" data-tab-target="returns">Returns</button>
-    </div>
+  <button type="button" class="tab-button is-active" data-tab-target="outbound">Outbound</button>
+  <button type="button" class="tab-button" data-tab-target="inbound">Inbound</button>
+  <button type="button" class="tab-button" data-tab-target="fulfillment">Fulfillment</button>
+  <button type="button" class="tab-button" data-tab-target="products">Products</button>
+  <button type="button" class="tab-button" data-tab-target="returns">Returns</button>
+</div>
 
     <!-- ================= OUTBOUND ================= -->
     <section class="card" data-tab-panel="outbound">
@@ -218,12 +218,14 @@
     <h3>Create return</h3>
 
     <div class="grid-2">
-      <input id="returnOrderDate" type="datetime-local" />
-      <input id="returnOrderNumber" type="text" placeholder="Return order number" />
-      <input id="returnDeliveryDate" type="datetime-local" />
-      <input id="returnSupplier" type="text" readonly />
-      <input id="returnSupplierName" type="text" placeholder="supplierName" />
-    </div>
+  <input id="returnOrderDate" type="datetime-local" />
+  <input id="returnOrderNumber" type="text" placeholder="Return order number" />
+  <input id="returnDeliveryDate" type="datetime-local" />
+  <input id="returnSupplier" type="text" readonly />
+  <input id="returnSupplierName" type="text" placeholder="supplierName" />
+  <input id="returnOriginalOrderNumber" type="text" placeholder="Original order number" />
+  <input id="returnAwb" type="text" placeholder="AWB" />
+</div>
 
     <div class="form-block">
       <h3>Produse retur</h3>

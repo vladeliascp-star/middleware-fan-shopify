@@ -650,10 +650,15 @@ async function loadInboundProducts() {
     fanProductsCache = products;
 
     if (!inboundItems.length) {
-      inboundItems = [createEmptyInboundItem()];
-    }
+  inboundItems = [createEmptyInboundItem()];
+}
 
-    renderInboundItems();
+if (!returnItems.length) {
+  returnItems = [createEmptyReturnItem()];
+}
+
+renderInboundItems();
+renderReturnItems();
 
     showResult('Incarcare produse FAN', {
       loaded: products.length
@@ -757,6 +762,31 @@ function attachInboundHeaderListeners() {
   });
 }
 
+function attachReturnHeaderListeners() {
+  [
+    'returnOrderDate',
+    'returnOrderNumber',
+    'returnDeliveryDate',
+    'returnSupplier',
+    'returnSupplierName',
+    'returnOriginalOrderNumber',
+    'returnAwb'
+  ].forEach(id => {    const element = byId(id);
+
+    if (!element) return;
+
+    element.addEventListener('input', () => {
+      renderReturnSummary();
+      updateReturnSubmitState();
+    });
+
+    element.addEventListener('change', () => {
+      renderReturnSummary();
+      updateReturnSubmitState();
+    });
+  });
+}
+
 function resetInboundFormAfterSuccess() {
   inboundItems = [createEmptyInboundItem()];
 
@@ -789,6 +819,8 @@ function initTabs() {
   }
 
   function activateTab(target) {
+    if (!target) return;
+
     tabButtons.forEach(button => {
       const isActive = button.getAttribute('data-tab-target') === target;
       button.classList.toggle('is-active', isActive);
@@ -802,9 +834,9 @@ function initTabs() {
   }
 
   tabButtons.forEach(button => {
-    button.addEventListener('click', () => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
       const target = button.getAttribute('data-tab-target');
-      if (!target) return;
       activateTab(target);
     });
   });
@@ -813,9 +845,7 @@ function initTabs() {
     document.querySelector('[data-tab-target].is-active') ||
     tabButtons[0];
 
-  if (activeButton) {
-    activateTab(activeButton.getAttribute('data-tab-target'));
-  }
+  activateTab(activeButton?.getAttribute('data-tab-target'));
 }
 
 function getProductDescriptionByCode(productCode) {
@@ -1070,13 +1100,15 @@ bindClickById('btn-add-return-item', () => {
     const formValidation = getInboundFormValidation();
 
     const payload = {
-      orderDate: formatDatetimeLocalToFan(value('inboundOrderDate')),
-      orderNumber: value('inboundOrderNumber'),
-      deliveryDate: formatDatetimeLocalToFan(value('inboundDeliveryDate')),
-      supplier: value('inboundSupplier'),
-      supplierName: value('inboundSupplierName'),
-      items: getInboundSummary().items
-    };
+  orderDate: formatDatetimeLocalToFan(value('returnOrderDate')),
+  orderNumber: value('returnOrderNumber'),
+  deliveryDate: formatDatetimeLocalToFan(value('returnDeliveryDate')),
+  supplier: value('returnSupplier'),
+  supplierName: value('returnSupplierName'),
+  originalOrderNumber: value('returnOriginalOrderNumber'),
+  awb: value('returnAwb'),
+  items: getReturnSummary().items
+};
 
     if (!formValidation.isValid) {
       showError('Create inbound', { message: formValidation.errors.join('\n') });
@@ -1154,13 +1186,15 @@ bindClickById('btn-create-return', async () => {
     });
 
     returnItems = [createEmptyReturnItem()];
-    setValue('returnOrderDate', getNowForDatetimeLocal());
-    setValue('returnDeliveryDate', '');
-    setValue('returnSupplier', getEffectiveSupplierValue());
-    setValue('returnSupplierName', '');
-    setValue('returnOrderNumber', '');
+setValue('returnOrderDate', getNowForDatetimeLocal());
+setValue('returnDeliveryDate', '');
+setValue('returnSupplier', getEffectiveSupplierValue());
+setValue('returnSupplierName', '');
+setValue('returnOrderNumber', '');
+setValue('returnOriginalOrderNumber', '');
+setValue('returnAwb', '');
 
-    renderReturnItems();
+renderReturnItems();
   } catch (err) {
   } finally {
     isSubmittingReturn = false;
@@ -1202,6 +1236,8 @@ bindClickById('btn-create-return', async () => {
 }
 
 function initApp() {
+  initTabs();
+
   inboundItems = [createEmptyInboundItem()];
   renderInboundItems();
 
@@ -1209,15 +1245,17 @@ function initApp() {
   renderReturnItems();
 
   attachInboundHeaderListeners();
+  attachReturnHeaderListeners();
   attachGlobalButtonListeners();
+
   initializeInboundDefaults();
 
   setValue('returnOrderDate', getNowForDatetimeLocal());
   setValue('returnSupplier', getEffectiveSupplierValue());
+  renderReturnSummary();
+  updateReturnSubmitState();
 
   loadNextInboundOrderNumber();
-  initTabs();
   loadDashboardModules();
 }
-
 initApp();
