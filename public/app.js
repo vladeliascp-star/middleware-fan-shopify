@@ -3,6 +3,9 @@ const output = document.getElementById('output');
 let inboundItems = [];
 let fanProductsCache = [];
 let isSubmittingInbound = false;
+let returnItems = [];
+let isSubmittingReturn = false;
+let returnOrderCounter = 1;
 
 const FAN_SUPPLIER_MAX_LENGTH = 20;
 const SUPPLIER_PRIMARY = 'PovesteDeVin - Eight Sigma';
@@ -121,6 +124,118 @@ function createEmptyInboundItem() {
   return {
     productCode: '',
     quantity: ''
+  };
+}
+
+function createEmptyReturnItem() {
+  return {
+    productCode: '',
+    quantity: ''
+  };
+}
+
+function getDuplicateReturnProductCodes() {
+  const counts = {};
+
+  returnItems.forEach(item => {
+    const code = String(item.productCode || '').trim();
+
+    if (!code) return;
+
+    counts[code] = (counts[code] || 0) + 1;
+  });
+
+  return Object.keys(counts).filter(code => counts[code] > 1);
+}
+
+function getReturnHeaderValidationErrors() {
+  const errors = [];
+
+  if (!value('returnOrderDate')) {
+    errors.push('Completeaza orderDate pentru retur.');
+  }
+
+  if (!value('returnOrderNumber')) {
+    errors.push('Lipseste orderNumber pentru retur.');
+  }
+
+  if (!value('returnDeliveryDate')) {
+    errors.push('Completeaza deliveryDate pentru retur.');
+  }
+
+  if (!value('returnSupplier')) {
+    errors.push('Lipseste supplier pentru retur.');
+  }
+
+  if (!value('returnSupplierName')) {
+    errors.push('Completeaza supplierName pentru retur.');
+  }
+
+  return errors;
+}
+
+function validateReturnItems() {
+  const errors = [];
+  const duplicates = getDuplicateReturnProductCodes();
+
+  if (!returnItems.length) {
+    errors.push('Adauga cel putin un produs in retur.');
+  }
+
+  returnItems.forEach((item, index) => {
+    const rowNumber = index + 1;
+    const productCode = String(item.productCode || '').trim();
+    const quantity = Number(item.quantity);
+
+    if (!productCode) {
+      errors.push(`Retur linia ${rowNumber}: selecteaza un produs.`);
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      errors.push(`Retur linia ${rowNumber}: cantitatea trebuie sa fie un numar intreg mai mare ca 0.`);
+    }
+  });
+
+  duplicates.forEach(code => {
+    errors.push(`Produs duplicat in retur: ${code}. Un produs poate aparea o singura data.`);
+  });
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
+function getReturnFormValidation() {
+  const headerErrors = getReturnHeaderValidationErrors();
+  const itemsValidation = validateReturnItems();
+
+  const errors = [...headerErrors, ...itemsValidation.errors];
+
+  return {
+    isValid: errors.length === 0,
+    errors
+  };
+}
+
+function getReturnSummary() {
+  const validItems = returnItems.filter(item => {
+    const productCode = String(item.productCode || '').trim();
+    const quantity = Number(item.quantity);
+
+    return productCode && Number.isInteger(quantity) && quantity > 0;
+  });
+
+  const totalLines = validItems.length;
+  const totalQuantity = validItems.reduce((sum, item) => sum + Number(item.quantity), 0);
+
+  return {
+    totalLines,
+    totalQuantity,
+    items: validItems.map(item => ({
+      productCode: String(item.productCode).trim(),
+      quantity: Number(item.quantity)
+    }))
   };
 }
 
@@ -370,6 +485,144 @@ function renderInboundItems() {
 
   renderInboundSummary();
   updateInboundSubmitState();
+}
+
+function updateReturnSubmitState() {
+  const button = byId('btn-create-return');
+
+  if (!button) return;
+
+  const validation = getReturnFormValidation();
+  button.disabled = isSubmittingReturn || !validation.isValid;
+}
+
+function renderReturnSummary() {
+  const container = byId('returnSummaryContainer');
+
+  if (!container) return;
+
+  const validation = getReturnFormValidation();
+  const summary = getReturnSummary();
+
+  const errorsHtml = validation.errors.length
+    ? `
+      <div class="inbound-summary-errors">
+        ${validation.errors.map(error => `<div>${escapeHtml(error)}</div>`).join('')}
+      </div>
+    `
+    : '<div class="inbound-summary-valid">Totul este valid.</div>';
+
+  const itemsHtml = summary.items.length
+    ? summary.items.map(item => `
+        <div class="inbound-summary-item">
+          <strong>${escapeHtml(item.productCode)}</strong>
+          <span>${fanProductsCache.length ? ` - ${escapeHtml(getInboundProductLabel(item.productCode).replace(`${item.productCode} - `, ''))}` : ''}</span>
+          <span> - cantitate: ${escapeHtml(item.quantity)}</span>
+        </div>
+      `).join('')
+    : '<div>Nu ai produse valide inca.</div>';
+
+  container.innerHTML = `
+    <div><strong>Pozitii valide:</strong> ${summary.totalLines}</div>
+    <div><strong>Total bucati:</strong> ${summary.totalQuantity}</div>
+    <div style="margin-top:8px;"><strong>Ce pleaca spre depozit ca retur:</strong></div>
+    <div>${itemsHtml}</div>
+    <div style="margin-top:10px;"><strong>Validare:</strong></div>
+    ${errorsHtml}
+  `;
+}
+
+function renderReturnItems() {
+  const container = byId('returnItemsContainer');
+
+  if (!container) return;
+
+  if (!returnItems.length) {
+    returnItems = [createEmptyReturnItem()];
+  }
+
+  const duplicateCodes = getDuplicateReturnProductCodes();
+
+  container.innerHTML = returnItems
+    .map((item, index) => {
+      const quantityValue = item.quantity === '' ? '' : item.quantity;
+      const hasDuplicate = item.productCode && duplicateCodes.includes(item.productCode);
+
+      const optionsHtml = [
+        '<option value="">Selecteaza produs</option>',
+        ...fanProductsCache
+          .slice()
+          .sort((a, b) => String(a.productCode || '').localeCompare(String(b.productCode || '')))
+          .map(product => {
+            const selected = product.productCode === item.productCode ? 'selected' : '';
+            const label = `${product.productCode}${product.description ? ' - ' + product.description : ''}`;
+
+            return `<option value="${escapeHtml(product.productCode)}" ${selected}>${escapeHtml(label)}</option>`;
+          })
+      ].join('');
+
+      return `
+        <div class="inbound-item-row" data-index="${index}">
+          <select class="return-item-product">
+            ${optionsHtml}
+          </select>
+
+          <input
+            class="return-item-quantity"
+            type="number"
+            min="1"
+            step="1"
+            placeholder="Cantitate"
+            value="${escapeHtml(quantityValue)}"
+          />
+
+          <button class="return-item-remove" data-index="${index}" type="button">
+            Sterge
+          </button>
+
+          <div class="inbound-item-inline-error">
+            ${hasDuplicate ? 'Produsul este deja adaugat pe alta linie de retur.' : ''}
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
+  container.querySelectorAll('.return-item-product').forEach((select, index) => {
+    select.addEventListener('change', event => {
+      returnItems[index].productCode = event.target.value;
+      renderReturnItems();
+    });
+  });
+
+  container.querySelectorAll('.return-item-quantity').forEach((input, index) => {
+    input.addEventListener('input', event => {
+      returnItems[index].quantity = event.target.value.trim();
+      renderReturnSummary();
+      updateReturnSubmitState();
+    });
+  });
+
+  container.querySelectorAll('.return-item-remove').forEach(button => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.index);
+      returnItems.splice(index, 1);
+
+      if (!returnItems.length) {
+        returnItems.push(createEmptyReturnItem());
+      }
+
+      renderReturnItems();
+    });
+  });
+
+  renderReturnSummary();
+  updateReturnSubmitState();
+}
+
+function addReturnItemRow() {
+  returnItems.push(createEmptyReturnItem());
+  renderReturnItems();
 }
 
 function addInboundItemRow() {
@@ -745,6 +998,10 @@ function attachGlobalButtonListeners() {
     addInboundItemRow();
   });
 
+bindClickById('btn-add-return-item', () => {
+  addReturnItemRow();
+});
+
   bindClickById('btn-health', () => {
     apiRequest('Health', '/health');
   });
@@ -863,6 +1120,54 @@ function attachGlobalButtonListeners() {
     }
   });
 
+bindClickById('btn-create-return', async () => {
+  const formValidation = getReturnFormValidation();
+
+  const payload = {
+    orderDate: formatDatetimeLocalToFan(value('returnOrderDate')),
+    orderNumber: value('returnOrderNumber'),
+    deliveryDate: formatDatetimeLocalToFan(value('returnDeliveryDate')),
+    supplier: value('returnSupplier'),
+    supplierName: value('returnSupplierName'),
+    items: getReturnSummary().items
+  };
+
+  if (!formValidation.isValid) {
+    showError('Create return', { message: formValidation.errors.join('\n') });
+    return;
+  }
+
+  if (isSubmittingReturn) {
+    return;
+  }
+
+  isSubmittingReturn = true;
+  updateReturnSubmitState();
+
+  try {
+    await apiRequest('Create return', '/fan/returns/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    returnItems = [createEmptyReturnItem()];
+    setValue('returnOrderDate', getNowForDatetimeLocal());
+    setValue('returnDeliveryDate', '');
+    setValue('returnSupplier', getEffectiveSupplierValue());
+    setValue('returnSupplierName', '');
+    setValue('returnOrderNumber', '');
+
+    renderReturnItems();
+  } catch (err) {
+  } finally {
+    isSubmittingReturn = false;
+    updateReturnSubmitState();
+  }
+});
+
   bindClickById('btn-get-inbound', () => {
     const orderNumber = value('getInboundOrderNumber');
     apiRequest('Get inbound', `/fan/inbound/${encodeURIComponent(orderNumber)}`);
@@ -891,17 +1196,25 @@ function attachGlobalButtonListeners() {
   });
 
   bindClickById('btn-return-report', () => {
-    const orderNumber = value('returnOrderNumber');
-    apiRequest('Return report', `/fan/returns/report/${encodeURIComponent(orderNumber)}`);
-  });
+  const orderNumber = value('returnOrderNumberSearch');
+  apiRequest('Return report', `/fan/returns/report/${encodeURIComponent(orderNumber)}`);
+});
 }
 
 function initApp() {
   inboundItems = [createEmptyInboundItem()];
   renderInboundItems();
+
+  returnItems = [createEmptyReturnItem()];
+  renderReturnItems();
+
   attachInboundHeaderListeners();
   attachGlobalButtonListeners();
   initializeInboundDefaults();
+
+  setValue('returnOrderDate', getNowForDatetimeLocal());
+  setValue('returnSupplier', getEffectiveSupplierValue());
+
   loadNextInboundOrderNumber();
   initTabs();
   loadDashboardModules();

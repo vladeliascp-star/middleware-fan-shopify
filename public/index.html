@@ -212,23 +212,43 @@
 
     <!-- ================= RETURNS ================= -->
     <section class="card" data-tab-panel="returns" hidden>
-      <h2>Returns</h2>
+  <h2>Returns (Inbound Retur FAN)</h2>
 
-      <div class="form-block">
-        <div class="row">
-          <input id="returnOrderNumber" />
-          <button id="btn-return-report">Return report</button>
-        </div>
-      </div>
-    </section>
+  <div class="form-block">
+    <h3>Create return</h3>
 
-    <!-- OUTPUT -->
-    <section class="card output-card">
-      <div class="output-header">
-        <h2>Raspuns</h2>
+    <div class="grid-2">
+      <input id="returnOrderDate" type="datetime-local" />
+      <input id="returnOrderNumber" type="text" placeholder="Return order number" />
+      <input id="returnDeliveryDate" type="datetime-local" />
+      <input id="returnSupplier" type="text" readonly />
+      <input id="returnSupplierName" type="text" placeholder="supplierName" />
+    </div>
+
+    <div class="form-block">
+      <h3>Produse retur</h3>
+
+      <div class="row">
+        <button id="btn-add-return-item">+ Adauga produs</button>
       </div>
-      <pre id="output">Aici vor aparea raspunsurile JSON...</pre>
-    </section>
+
+      <div id="returnItemsContainer" class="items-box"></div>
+      <div id="returnSummaryContainer" class="items-box" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="row">
+      <button id="btn-create-return" class="primary">Trimite retur</button>
+    </div>
+  </div>
+
+  <div class="form-block">
+    <h3>Return report</h3>
+    <div class="row">
+      <input id="returnOrderNumberSearch" />
+      <button id="btn-return-report">Return report</button>
+    </div>
+  </div>
+</section>
 
   </div>
 
