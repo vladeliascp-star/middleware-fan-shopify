@@ -1097,60 +1097,58 @@ bindClickById('btn-add-return-item', () => {
   });
 
   bindClickById('btn-create-inbound', async () => {
-    const formValidation = getInboundFormValidation();
+  const formValidation = getInboundFormValidation();
 
-    const payload = {
-  orderDate: formatDatetimeLocalToFan(value('returnOrderDate')),
-  orderNumber: value('returnOrderNumber'),
-  deliveryDate: formatDatetimeLocalToFan(value('returnDeliveryDate')),
-  supplier: value('returnSupplier'),
-  supplierName: value('returnSupplierName'),
-  originalOrderNumber: value('returnOriginalOrderNumber'),
-  awb: value('returnAwb'),
-  items: getReturnSummary().items
-};
+  const payload = {
+    orderDate: formatDatetimeLocalToFan(value('inboundOrderDate')),
+    orderNumber: value('inboundOrderNumber'),
+    deliveryDate: formatDatetimeLocalToFan(value('inboundDeliveryDate')),
+    supplier: value('inboundSupplier'),
+    supplierName: value('inboundSupplierName'),
+    items: getInboundSummary().items
+  };
 
-    if (!formValidation.isValid) {
-      showError('Create inbound', { message: formValidation.errors.join('\n') });
-      return;
-    }
+  if (!formValidation.isValid) {
+    showError('Create inbound', { message: formValidation.errors.join('\n') });
+    return;
+  }
 
-    if (isSubmittingInbound) {
-      return;
-    }
+  if (isSubmittingInbound) {
+    return;
+  }
 
-    isSubmittingInbound = true;
-    updateInboundSubmitState();
+  isSubmittingInbound = true;
+  updateInboundSubmitState();
 
+  try {
+    await apiRequest('Create inbound', '/fan/inbound/test', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    resetInboundFormAfterSuccess();
+    await loadNextInboundOrderNumber();
+  } catch (err) {
     try {
-      await apiRequest('Create inbound', '/fan/inbound/test', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
+      const parsed =
+        typeof err?.responseBody === 'string'
+          ? JSON.parse(err.responseBody)
+          : err?.responseBody;
 
-      resetInboundFormAfterSuccess();
-      await loadNextInboundOrderNumber();
-    } catch (err) {
-      try {
-        const parsed =
-          typeof err?.responseBody === 'string'
-            ? JSON.parse(err.responseBody)
-            : err?.responseBody;
-
-        if (parsed?.code === 'INBOUND_DUPLICATE') {
-          setValue('inboundOrderNumber', parsed.orderNumber || payload.orderNumber);
-        }
-      } catch {
-        // nu facem nimic suplimentar
+      if (parsed?.code === 'INBOUND_DUPLICATE') {
+        setValue('inboundOrderNumber', parsed.orderNumber || payload.orderNumber);
       }
-    } finally {
-      isSubmittingInbound = false;
-      updateInboundSubmitState();
+    } catch {
+      // nu facem nimic suplimentar
     }
-  });
+  } finally {
+    isSubmittingInbound = false;
+    updateInboundSubmitState();
+  }
+});
 
 bindClickById('btn-create-return', async () => {
   const formValidation = getReturnFormValidation();
@@ -1161,6 +1159,8 @@ bindClickById('btn-create-return', async () => {
     deliveryDate: formatDatetimeLocalToFan(value('returnDeliveryDate')),
     supplier: value('returnSupplier'),
     supplierName: value('returnSupplierName'),
+    originalOrderNumber: value('returnOriginalOrderNumber'),
+    awb: value('returnAwb'),
     items: getReturnSummary().items
   };
 
@@ -1186,15 +1186,15 @@ bindClickById('btn-create-return', async () => {
     });
 
     returnItems = [createEmptyReturnItem()];
-setValue('returnOrderDate', getNowForDatetimeLocal());
-setValue('returnDeliveryDate', '');
-setValue('returnSupplier', getEffectiveSupplierValue());
-setValue('returnSupplierName', '');
-setValue('returnOrderNumber', '');
-setValue('returnOriginalOrderNumber', '');
-setValue('returnAwb', '');
+    setValue('returnOrderDate', getNowForDatetimeLocal());
+    setValue('returnDeliveryDate', '');
+    setValue('returnSupplier', getEffectiveSupplierValue());
+    setValue('returnSupplierName', '');
+    setValue('returnOrderNumber', '');
+    setValue('returnOriginalOrderNumber', '');
+    setValue('returnAwb', '');
 
-renderReturnItems();
+    renderReturnItems();
   } catch (err) {
   } finally {
     isSubmittingReturn = false;
