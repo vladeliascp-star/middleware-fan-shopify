@@ -1291,6 +1291,7 @@ function initApp() {
   attachInboundHeaderListeners();
   attachReturnHeaderListeners();
   attachGlobalButtonListeners();
+  initializeReportsDefaults();
 
   initializeInboundDefaults();
 
