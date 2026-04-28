@@ -895,6 +895,16 @@ function findLatestSnapshotForMonth(snapshots, month) {
   return monthlySnapshots[0] || null;
 }
 
+function findFirstSnapshotForMonth(snapshots, month) {
+  const monthPrefix = String(month || '').trim();
+
+  const monthlySnapshots = snapshots
+    .filter(snapshot => String(snapshot.date || '').startsWith(monthPrefix))
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  return monthlySnapshots[0] || null;
+}
+
 async function runDailyStockSnapshot() {
   const dateKey = getTodayDateKey();
   const snapshots = readStockSnapshots();
@@ -2283,6 +2293,7 @@ async function buildMonthlyStockReport(month) {
   const { startDate, endDate } = getMonthRange(month);
   const snapshots = readStockSnapshots();
   const monthSnapshot = findLatestSnapshotForMonth(snapshots, month);
+  const firstMonthSnapshot = findFirstSnapshotForMonth(snapshots, month);
 
   const inboundResponse = await getInboundReportFromFan(startDate, endDate);
   const outboundResponse = await getOutboundReportFromFan(startDate, endDate);
@@ -2346,6 +2357,8 @@ for (const item of finalStockRows) {
     startDate,
     endDate,
     snapshotDate: monthSnapshot?.date || null,
+    firstSnapshotDate: firstMonthSnapshot?.date || null,
+    firstSnapshotRows: firstMonthSnapshot?.rows || [],
     rows: Array.from(rowsBySku.values()).sort((a, b) => a.sku.localeCompare(b.sku))
   };
 }
@@ -2999,6 +3012,8 @@ app.get('/reports/stock-monthly', requireAdminBasicAuth, async (req, res) => {
 sheet.columns = [
   { header: 'SKU', key: 'sku', width: 18 },
   { header: 'Produs', key: 'description', width: 40 },
+  { header: 'Stoc inceput luna', key: 'openingStock', width: 18 },
+  { header: 'Data snapshot inceput', key: 'openingSnapshotDate', width: 22 },
   { header: 'Intrari bune', key: 'inboundGood', width: 16 },
   { header: 'Intrari deteriorate', key: 'inboundDamaged', width: 20 },
   { header: 'Iesiri comenzi', key: 'outbound', width: 16 },
@@ -3007,16 +3022,37 @@ sheet.columns = [
   { header: 'Stoc FAN final', key: 'fanFinalStock', width: 16 },
   { header: 'Data snapshot stoc', key: 'stockSnapshotDate', width: 20 },
   { header: 'Stoc vandabil estimat', key: 'sellableStock', width: 22 },
+  { header: 'Stoc teoretic final', key: 'theoreticalFinalStock', width: 22 },
+  { header: 'Diferenta vs FAN', key: 'stockDifference', width: 18 },
   { header: 'Observatii', key: 'observations', width: 35 }
 ];
 
     sheet.getRow(1).font = { bold: true };
 
 for (const row of report.rows) {
+const openingSnapshotRow = report.firstSnapshotRows.find(item => item.sku === row.sku);
+
+row.openingStock = openingSnapshotRow
+  ? Number(openingSnapshotRow.quantity || 0)
+  : 'LIPSA SNAPSHOT';
+
+row.openingSnapshotDate = report.firstSnapshotDate || 'LIPSA SNAPSHOT';
   row.sellableStock = Math.max(
     0,
     Number(row.fanFinalStock || 0) - Number(row.inboundDamaged || 0) - Number(row.returnDamaged || 0)
   );
+row.theoreticalFinalStock =
+  Number(row.openingStock || 0) +
+  Number(row.inboundGood || 0) +
+  Number(row.returnGood || 0) -
+  Number(row.outbound || 0) -
+  Number(row.inboundDamaged || 0) -
+  Number(row.returnDamaged || 0);
+
+row.stockDifference =
+  typeof row.openingStock === 'number'
+    ? Number(row.fanFinalStock || 0) - Number(row.theoreticalFinalStock || 0)
+    : 'LIPSA SNAPSHOT';
 
   const observations = [];
 
