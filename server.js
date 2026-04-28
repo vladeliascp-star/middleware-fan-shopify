@@ -2345,6 +2345,7 @@ for (const item of finalStockRows) {
     month,
     startDate,
     endDate,
+    snapshotDate: monthSnapshot?.date || null,
     rows: Array.from(rowsBySku.values()).sort((a, b) => a.sku.localeCompare(b.sku))
   };
 }
@@ -3004,6 +3005,7 @@ sheet.columns = [
   { header: 'Retururi bune', key: 'returnGood', width: 16 },
   { header: 'Retururi deteriorate', key: 'returnDamaged', width: 22 },
   { header: 'Stoc FAN final', key: 'fanFinalStock', width: 16 },
+  { header: 'Data snapshot stoc', key: 'stockSnapshotDate', width: 20 },
   { header: 'Stoc vandabil estimat', key: 'sellableStock', width: 22 },
   { header: 'Observatii', key: 'observations', width: 35 }
 ];
@@ -3040,7 +3042,7 @@ for (const row of report.rows) {
   }
 
   row.observations = observations.join(', ');
-
+  row.stockSnapshotDate = report.snapshotDate || 'FAN live';
   sheet.addRow(row);
 }
 
