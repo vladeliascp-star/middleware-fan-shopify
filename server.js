@@ -1462,9 +1462,43 @@ function extractInboundCounterFromOrderNumber(orderNumber) {
   return Number(match[1]);
 }
 
+function formatDateForFanReport(date) {
+  const pad = number => String(number).padStart(2, '0');
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+async function getHighestInboundCounterFromFan() {
+  const startDate = '2026-01-01 00:00:00';
+
+  const end = new Date();
+  end.setDate(end.getDate() + 1);
+
+  const endDate = formatDateForFanReport(end);
+
+  const response = await getInboundReportFromFan(startDate, endDate);
+
+  const orders = [
+    ...(Array.isArray(response?.orders) ? response.orders : []),
+    ...(Array.isArray(response?.items) ? response.items : [])
+  ];
+
+  let highestCounter = 0;
+
+  for (const order of orders) {
+    const counter = extractInboundCounterFromOrderNumber(order?.orderNumber);
+
+    if (counter !== null && counter > highestCounter) {
+      highestCounter = counter;
+    }
+  }
+
+  return highestCounter;
+}
+
 async function getNextAvailableInboundOrderNumber() {
-  let counter = readInboundCounter();
-  let nextCounter = counter + 1;
+  const fanHighestCounter = await getHighestInboundCounterFromFan();
+  let nextCounter = fanHighestCounter + 1;
 
   while (nextCounter < 10000) {
     const orderNumber = generateInboundOrderNumber(nextCounter);
@@ -1479,8 +1513,6 @@ async function getNextAvailableInboundOrderNumber() {
       };
     }
 
-    counter = nextCounter;
-    writeInboundCounter(counter);
     nextCounter += 1;
   }
 
