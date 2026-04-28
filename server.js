@@ -1477,6 +1477,7 @@ async function getHighestInboundCounterFromFan() {
   const endDate = formatDateForFanReport(end);
 
   const response = await getInboundReportFromFan(startDate, endDate);
+  console.log('[INBOUND REPORT RAW]', JSON.stringify(response, null, 2));
 
   const orders = [
     ...(Array.isArray(response?.orders) ? response.orders : []),
