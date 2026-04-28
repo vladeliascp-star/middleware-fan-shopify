@@ -2151,11 +2151,19 @@ res.json(response.data);
 });
 
 function extractFanReportRows(response) {
-  return [
-    ...(Array.isArray(response?.orders) ? response.orders : []),
-    ...(Array.isArray(response?.items) ? response.items : []),
-    ...(Array.isArray(response?.products) ? response.products : [])
-  ];
+  if (Array.isArray(response?.orders) && response.orders.length > 0) {
+    return response.orders;
+  }
+
+  if (Array.isArray(response?.items) && response.items.length > 0) {
+    return response.items;
+  }
+
+  if (Array.isArray(response?.products) && response.products.length > 0) {
+    return response.products;
+  }
+
+  return [];
 }
 
 function getStockReportRow(rowsBySku, sku, description = '') {
