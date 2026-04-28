@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const csv = require('csv-parser');
 const crypto = require('crypto');
+const ExcelJS = require('exceljs');
 const COUNTER_FILE = path.join(__dirname, 'inbound-counter.json');
 
 const app = express();
@@ -1468,6 +1469,25 @@ function formatDateForFanReport(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
+function getMonthRange(month) {
+  const match = String(month || '').match(/^(\d{4})-(\d{2})$/);
+
+  if (!match) {
+    throw new Error('Format luna invalid. Foloseste YYYY-MM, exemplu 2026-04');
+  }
+
+  const year = Number(match[1]);
+  const monthIndex = Number(match[2]) - 1;
+
+  const start = new Date(year, monthIndex, 1, 0, 0, 0);
+  const end = new Date(year, monthIndex + 1, 1, 0, 0, 0);
+
+  return {
+    startDate: formatDateForFanReport(start),
+    endDate: formatDateForFanReport(end)
+  };
+}
+
 async function getHighestInboundCounterFromFan() {
   const startDate = '2026-01-01 00:00:00';
 
@@ -2130,6 +2150,109 @@ res.json(response.data);
   }
 });
 
+function extractFanReportRows(response) {
+  return [
+    ...(Array.isArray(response?.orders) ? response.orders : []),
+    ...(Array.isArray(response?.items) ? response.items : []),
+    ...(Array.isArray(response?.products) ? response.products : [])
+  ];
+}
+
+function getStockReportRow(rowsBySku, sku, description = '') {
+  const cleanSku = String(sku || '').trim();
+
+  if (!cleanSku) {
+    return null;
+  }
+
+  if (!rowsBySku.has(cleanSku)) {
+    rowsBySku.set(cleanSku, {
+      sku: cleanSku,
+      description: String(description || '').trim(),
+      inboundGood: 0,
+      inboundDamaged: 0,
+      outbound: 0,
+      returnGood: 0,
+      returnDamaged: 0,
+      fanFinalStock: 0
+    });
+  }
+
+  const row = rowsBySku.get(cleanSku);
+
+  if (!row.description && description) {
+    row.description = String(description || '').trim();
+  }
+
+  return row;
+}
+
+async function buildMonthlyStockReport(month) {
+  const { startDate, endDate } = getMonthRange(month);
+
+  const inboundResponse = await getInboundReportFromFan(startDate, endDate);
+  const outboundResponse = await getOutboundReportFromFan(startDate, endDate);
+  const returnResponse = await getReturnReportFromFan(startDate, endDate);
+  const stockResponse = await getProductStockFromFan(1);
+
+  const rowsBySku = new Map();
+
+  for (const item of extractFanReportRows(inboundResponse)) {
+    const sku = item.productCode;
+    const qty = Number(item.quantity || 0);
+    const row = getStockReportRow(rowsBySku, sku, item.description);
+
+    if (!row) continue;
+
+    if (item.isDamaged === true) {
+      row.inboundDamaged += qty;
+    } else {
+      row.inboundGood += qty;
+    }
+  }
+
+  for (const item of extractFanReportRows(outboundResponse)) {
+    const sku = item.productCode;
+    const qty = Number(item.quantity || 0);
+    const row = getStockReportRow(rowsBySku, sku, item.description);
+
+    if (!row) continue;
+
+    row.outbound += qty;
+  }
+
+  for (const item of extractFanReportRows(returnResponse)) {
+    const sku = item.productCode;
+    const qty = Number(item.quantity || 0);
+    const row = getStockReportRow(rowsBySku, sku, item.description);
+
+    if (!row) continue;
+
+    if (item.isDamaged === true) {
+      row.returnDamaged += qty;
+    } else {
+      row.returnGood += qty;
+    }
+  }
+
+  for (const item of extractFanReportRows(stockResponse)) {
+    const sku = item.productCode;
+    const qty = Number(item.quantity || 0);
+    const row = getStockReportRow(rowsBySku, sku, item.description);
+
+    if (!row) continue;
+
+    row.fanFinalStock += qty;
+  }
+
+  return {
+    month,
+    startDate,
+    endDate,
+    rows: Array.from(rowsBySku.values()).sort((a, b) => a.sku.localeCompare(b.sku))
+  };
+}
+
 async function getOutboundFromFan(orderNumber) {
   const token = await getFanToken();
 
@@ -2749,6 +2872,58 @@ try {
 /**
  * GET ORDER FROM FAN
  */
+app.get('/reports/stock-monthly', requireAdminBasicAuth, async (req, res) => {
+  try {
+    const month = req.query.month;
+
+    if (!month) {
+      return res.status(400).json({
+        error: 'Parametrul month este obligatoriu. Exemplu: /reports/stock-monthly?month=2026-04'
+      });
+    }
+
+    const report = await buildMonthlyStockReport(month);
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet(`Stoc ${month}`);
+
+    sheet.columns = [
+      { header: 'SKU', key: 'sku', width: 18 },
+      { header: 'Produs', key: 'description', width: 40 },
+      { header: 'Intrari bune', key: 'inboundGood', width: 16 },
+      { header: 'Intrari deteriorate', key: 'inboundDamaged', width: 20 },
+      { header: 'Iesiri comenzi', key: 'outbound', width: 16 },
+      { header: 'Retururi bune', key: 'returnGood', width: 16 },
+      { header: 'Retururi deteriorate', key: 'returnDamaged', width: 22 },
+      { header: 'Stoc FAN final', key: 'fanFinalStock', width: 16 }
+    ];
+
+    sheet.getRow(1).font = { bold: true };
+
+    for (const row of report.rows) {
+      sheet.addRow(row);
+    }
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="raport-stoc-${month}.xlsx"`
+    );
+
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error('[STOCK MONTHLY REPORT ERROR]', err.response?.data || err.message);
+    res.status(500).json({
+      error: err.response?.data || err.message
+    });
+  }
+});
+
 app.get('/fan/orders/:orderNumber', async (req, res) => {
   try {
     const response = await getInboundFromFan(req.params.orderNumber);
