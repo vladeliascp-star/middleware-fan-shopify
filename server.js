@@ -2281,7 +2281,7 @@ function getStockReportRow(rowsBySku, sku, description = '') {
 
 async function buildMonthlyStockReport(month) {
   const { startDate, endDate } = getMonthRange(month);
-  const snapshots = loadStockSnapshots();
+  const snapshots = readStockSnapshots();
   const monthSnapshot = findLatestSnapshotForMonth(snapshots, month);
 
   const inboundResponse = await getInboundReportFromFan(startDate, endDate);
