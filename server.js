@@ -2944,40 +2944,6 @@ for (const row of report.rows) {
   sheet.addRow(row);
 }
 
-for (const row of report.rows) {
-  row.sellableStock = Math.max(
-    0,
-    Number(row.fanFinalStock || 0) - Number(row.inboundDamaged || 0) - Number(row.returnDamaged || 0)
-  );
-
-  const observations = [];
-
-  if (Number(row.inboundDamaged || 0) > 0 || Number(row.returnDamaged || 0) > 0) {
-    observations.push('DETERIORATE');
-  }
-
-  if (Number(row.returnGood || 0) > 0 || Number(row.returnDamaged || 0) > 0) {
-    observations.push('RETURURI');
-  }
-
-  if (Number(row.sellableStock || 0) > 0 && Number(row.sellableStock || 0) < 6) {
-    observations.push('STOC MIC');
-  }
-
-  if (
-    Number(row.inboundGood || 0) === 0 &&
-    Number(row.outbound || 0) === 0 &&
-    Number(row.returnGood || 0) === 0 &&
-    Number(row.returnDamaged || 0) === 0
-  ) {
-    observations.push('FARA MISCARE');
-  }
-
-  row.observations = observations.join(', ');
-
-  sheet.addRow(row);
-}
-
 const totalRowNumber = sheet.rowCount + 1;
 
 sheet.addRow({
