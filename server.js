@@ -2730,10 +2730,10 @@ app.get('/fan/inbound/next-order-number', async (req, res) => {
       orderNumber: result.orderNumber
     });
   } catch (err) {
-    console.error('Eroare next inbound order number', err);
+    console.error('Eroare next inbound order number', err.response?.data || err.message || err);
 
     res.status(500).json({
-      error: 'Nu am putut genera orderNumber'
+      error: err.response?.data || err.message || 'Nu am putut genera orderNumber'
     });
   }
 });
