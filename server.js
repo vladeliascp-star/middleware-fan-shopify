@@ -1453,7 +1453,7 @@ function generateInboundOrderNumber(counter) {
 }
 
 function extractInboundCounterFromOrderNumber(orderNumber) {
-  const match = String(orderNumber || '').match(/^PDVtoFAN_(\d+)$/);
+    const match = String(orderNumber || '').match(/^PDVTOFAN_(\d+)$/i);
 
   if (!match) {
     return null;
