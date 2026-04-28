@@ -1447,9 +1447,39 @@ function writeInboundCounter(counter) {
   }
 }
 
-function generateInboundOrderNumber(counter) {
-  const padded = String(counter).padStart(2, '0');
-  return `PDVtoFAN_${padded}`;
+function extractInboundCounterFromOrderNumber(orderNumber) {
+  const match = String(orderNumber || '').match(/^PDVtoFAN_(\d+)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1]);
+}
+
+async function getNextAvailableInboundOrderNumber() {
+  let counter = readInboundCounter();
+  let nextCounter = counter + 1;
+
+  while (nextCounter < 10000) {
+    const orderNumber = generateInboundOrderNumber(nextCounter);
+    const exists = await inboundExistsInFan(orderNumber);
+
+    if (!exists) {
+      writeInboundCounter(nextCounter - 1);
+
+      return {
+        orderNumber,
+        counter: nextCounter
+      };
+    }
+
+    counter = nextCounter;
+    writeInboundCounter(counter);
+    nextCounter += 1;
+  }
+
+  throw new Error('Nu am putut gasi un orderNumber inbound liber');
 }
 
 async function getFanToken(forceRefresh = false) {
@@ -1985,9 +2015,15 @@ app.post('/fan/inbound/test', async (req, res) => {
 
     const response = await sendInboundToFan(data);
 
-    let counter = readInboundCounter();
-    counter += 1;
-    writeInboundCounter(counter);
+    const usedCounter = extractInboundCounterFromOrderNumber(data.orderNumber);
+
+if (usedCounter !== null) {
+  const currentCounter = readInboundCounter();
+
+  if (usedCounter > currentCounter) {
+    writeInboundCounter(usedCounter);
+  }
+}
 
     console.log('[FAN INBOUND RESPONSE]', JSON.stringify(response, null, 2));
 
@@ -2686,14 +2722,12 @@ app.get('/fan/orders/:orderNumber', async (req, res) => {
   }
 });
 
-app.get('/fan/inbound/next-order-number', (req, res) => {
+app.get('/fan/inbound/next-order-number', async (req, res) => {
   try {
-    const counter = readInboundCounter();
-    const nextCounter = counter + 1;
-    const orderNumber = generateInboundOrderNumber(nextCounter);
+    const result = await getNextAvailableInboundOrderNumber();
 
     res.json({
-      orderNumber
+      orderNumber: result.orderNumber
     });
   } catch (err) {
     console.error('Eroare next inbound order number', err);
@@ -2703,7 +2737,6 @@ app.get('/fan/inbound/next-order-number', (req, res) => {
     });
   }
 });
-
 app.get('/fan/inbound/:orderNumber', async (req, res) => {
   try {
     const response = await getInboundFromFan(req.params.orderNumber);
