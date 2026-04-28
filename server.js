@@ -885,6 +885,16 @@ function snapshotExistsForDate(snapshots, dateKey) {
   return snapshots.some(snapshot => snapshot.date === dateKey);
 }
 
+function findLatestSnapshotForMonth(snapshots, month) {
+  const monthPrefix = String(month || '').trim();
+
+  const monthlySnapshots = snapshots
+    .filter(snapshot => String(snapshot.date || '').startsWith(monthPrefix))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  return monthlySnapshots[0] || null;
+}
+
 async function runDailyStockSnapshot() {
   const dateKey = getTodayDateKey();
   const snapshots = readStockSnapshots();
@@ -2271,6 +2281,8 @@ function getStockReportRow(rowsBySku, sku, description = '') {
 
 async function buildMonthlyStockReport(month) {
   const { startDate, endDate } = getMonthRange(month);
+  const snapshots = loadStockSnapshots();
+  const monthSnapshot = findLatestSnapshotForMonth(snapshots, month);
 
   const inboundResponse = await getInboundReportFromFan(startDate, endDate);
   const outboundResponse = await getOutboundReportFromFan(startDate, endDate);
@@ -2317,15 +2329,17 @@ async function buildMonthlyStockReport(month) {
     }
   }
 
-  for (const item of extractFanReportRows(stockResponse)) {
-    const sku = item.productCode;
-    const qty = Number(item.quantity || 0);
-    const row = getStockReportRow(rowsBySku, sku, item.description);
+  const finalStockRows = monthSnapshot?.rows || extractFanReportRows(stockResponse);
 
-    if (!row) continue;
+for (const item of finalStockRows) {
+  const sku = item.productCode || item.sku;
+  const qty = Number(item.quantity || 0);
+  const row = getStockReportRow(rowsBySku, sku, item.description);
 
-    row.fanFinalStock += qty;
-  }
+  if (!row) continue;
+
+  row.fanFinalStock += qty;
+}
 
   return {
     month,
