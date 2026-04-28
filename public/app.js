@@ -829,9 +829,7 @@ function downloadMonthlyStockReport() {
 }
 
 async function runManualStockSnapshot() {
-  await apiRequest('Snapshot stoc manual', '/reports/stock-snapshot/run', {
-    method: 'POST'
-  });
+  await apiRequest('Snapshot stoc manual', '/reports/stock-snapshot/run');
 }
 
 function bindClickById(id, handler) {
