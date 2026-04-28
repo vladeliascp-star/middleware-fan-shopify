@@ -2887,22 +2887,120 @@ app.get('/reports/stock-monthly', requireAdminBasicAuth, async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet(`Stoc ${month}`);
 
-    sheet.columns = [
-      { header: 'SKU', key: 'sku', width: 18 },
-      { header: 'Produs', key: 'description', width: 40 },
-      { header: 'Intrari bune', key: 'inboundGood', width: 16 },
-      { header: 'Intrari deteriorate', key: 'inboundDamaged', width: 20 },
-      { header: 'Iesiri comenzi', key: 'outbound', width: 16 },
-      { header: 'Retururi bune', key: 'returnGood', width: 16 },
-      { header: 'Retururi deteriorate', key: 'returnDamaged', width: 22 },
-      { header: 'Stoc FAN final', key: 'fanFinalStock', width: 16 }
-    ];
+sheet.columns = [
+  { header: 'SKU', key: 'sku', width: 18 },
+  { header: 'Produs', key: 'description', width: 40 },
+  { header: 'Intrari bune', key: 'inboundGood', width: 16 },
+  { header: 'Intrari deteriorate', key: 'inboundDamaged', width: 20 },
+  { header: 'Iesiri comenzi', key: 'outbound', width: 16 },
+  { header: 'Retururi bune', key: 'returnGood', width: 16 },
+  { header: 'Retururi deteriorate', key: 'returnDamaged', width: 22 },
+  { header: 'Stoc FAN final', key: 'fanFinalStock', width: 16 },
+  { header: 'Stoc vandabil estimat', key: 'sellableStock', width: 22 },
+  { header: 'Observatii', key: 'observations', width: 35 }
+];
 
     sheet.getRow(1).font = { bold: true };
 
-    for (const row of report.rows) {
-      sheet.addRow(row);
-    }
+for (const row of report.rows) {
+  row.sellableStock = Math.max(
+    0,
+    Number(row.fanFinalStock || 0) - Number(row.inboundDamaged || 0) - Number(row.returnDamaged || 0)
+  );
+
+  const observations = [];
+
+  if (Number(row.inboundDamaged || 0) > 0 || Number(row.returnDamaged || 0) > 0) {
+    observations.push('DETERIORATE');
+  }
+
+  if (Number(row.returnGood || 0) > 0 || Number(row.returnDamaged || 0) > 0) {
+    observations.push('RETURURI');
+  }
+
+  if (Number(row.sellableStock || 0) > 0 && Number(row.sellableStock || 0) < 6) {
+    observations.push('STOC MIC');
+  }
+
+  if (
+    Number(row.inboundGood || 0) === 0 &&
+    Number(row.outbound || 0) === 0 &&
+    Number(row.returnGood || 0) === 0 &&
+    Number(row.returnDamaged || 0) === 0
+  ) {
+    observations.push('FARA MISCARE');
+  }
+
+  row.observations = observations.join(', ');
+
+  sheet.addRow(row);
+}
+
+for (const row of report.rows) {
+  row.sellableStock = Math.max(
+    0,
+    Number(row.fanFinalStock || 0) - Number(row.inboundDamaged || 0) - Number(row.returnDamaged || 0)
+  );
+
+  const observations = [];
+
+  if (Number(row.inboundDamaged || 0) > 0 || Number(row.returnDamaged || 0) > 0) {
+    observations.push('DETERIORATE');
+  }
+
+  if (Number(row.returnGood || 0) > 0 || Number(row.returnDamaged || 0) > 0) {
+    observations.push('RETURURI');
+  }
+
+  if (Number(row.sellableStock || 0) > 0 && Number(row.sellableStock || 0) < 6) {
+    observations.push('STOC MIC');
+  }
+
+  if (
+    Number(row.inboundGood || 0) === 0 &&
+    Number(row.outbound || 0) === 0 &&
+    Number(row.returnGood || 0) === 0 &&
+    Number(row.returnDamaged || 0) === 0
+  ) {
+    observations.push('FARA MISCARE');
+  }
+
+  row.observations = observations.join(', ');
+
+  sheet.addRow(row);
+}
+
+const totalRowNumber = sheet.rowCount + 1;
+
+sheet.addRow({
+  sku: 'TOTAL',
+  inboundGood: { formula: `SUM(C2:C${totalRowNumber - 1})` },
+  inboundDamaged: { formula: `SUM(D2:D${totalRowNumber - 1})` },
+  outbound: { formula: `SUM(E2:E${totalRowNumber - 1})` },
+  returnGood: { formula: `SUM(F2:F${totalRowNumber - 1})` },
+  returnDamaged: { formula: `SUM(G2:G${totalRowNumber - 1})` },
+  fanFinalStock: { formula: `SUM(H2:H${totalRowNumber - 1})` },
+  sellableStock: { formula: `SUM(I2:I${totalRowNumber - 1})` }
+});
+
+sheet.getRow(totalRowNumber).font = { bold: true };
+
+for (let i = 2; i < totalRowNumber; i++) {
+  const row = sheet.getRow(i);
+
+  if (Number(row.getCell('D').value || 0) > 0 || Number(row.getCell('G').value || 0) > 0) {
+    row.getCell('D').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+    row.getCell('G').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFC7CE' } };
+  }
+
+  if (Number(row.getCell('F').value || 0) > 0) {
+    row.getCell('F').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } };
+  }
+
+  if (Number(row.getCell('I').value || 0) > 0 && Number(row.getCell('I').value || 0) < 6) {
+    row.getCell('I').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFEB9C' } };
+  }
+}
 
     res.setHeader(
       'Content-Type',
