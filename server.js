@@ -3684,6 +3684,27 @@ pollFanReturnReports();
 setInterval(pollFanReturnReports, 5 * 60 * 1000);
 let isSyncRunning = false;
 let isFanSyncRunning = false;
+let isStockSnapshotRunning = false;
+
+async function runDailyStockSnapshotSafe() {
+  if (isStockSnapshotRunning) {
+    console.log('[STOCK SNAPSHOT SKIPPED - STILL RUNNING]');
+    return;
+  }
+
+  try {
+    isStockSnapshotRunning = true;
+    console.log('[STOCK SNAPSHOT START]');
+
+    const result = await runDailyStockSnapshot();
+
+    console.log('[STOCK SNAPSHOT DONE]', result);
+  } catch (err) {
+    console.error('[STOCK SNAPSHOT ERROR]', err.response?.data || err.message);
+  } finally {
+    isStockSnapshotRunning = false;
+  }
+}
 
 setInterval(async () => {
   if (isFanSyncRunning) {
@@ -3793,5 +3814,6 @@ setInterval(async () => {
     console.error('[FAN PRODUCTS CACHE ERROR]', err.message);
   }
 }, 10 * 60 * 1000); // la 10 minute
-
+setInterval(runDailyStockSnapshotSafe, 24 * 60 * 60 * 1000);
+runDailyStockSnapshotSafe();
 app.listen(PORT, () => console.log('Server running on ' + PORT));
