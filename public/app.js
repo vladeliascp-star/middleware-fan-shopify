@@ -798,6 +798,42 @@ function resetInboundFormAfterSuccess() {
   renderInboundItems();
 }
 
+function getCurrentMonthValue() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${now.getFullYear()}-${month}`;
+}
+
+function initializeReportsDefaults() {
+  const monthInput = byId('stockReportMonth');
+
+  if (monthInput && !monthInput.value) {
+    monthInput.value = getCurrentMonthValue();
+  }
+}
+
+function downloadMonthlyStockReport() {
+  const month = value('stockReportMonth') || getCurrentMonthValue();
+
+  if (!month) {
+    showError('Raport stoc lunar', { message: 'Selecteaza luna pentru raport.' });
+    return;
+  }
+
+  showResult('Raport stoc lunar', {
+    status: 'Se descarca raportul Excel...',
+    month
+  });
+
+  window.location.href = `/reports/stock-monthly?month=${encodeURIComponent(month)}`;
+}
+
+async function runManualStockSnapshot() {
+  await apiRequest('Snapshot stoc manual', '/reports/stock-snapshot/run', {
+    method: 'POST'
+  });
+}
+
 function bindClickById(id, handler) {
   const nodes = document.querySelectorAll(`[id="${id}"]`);
 
@@ -1042,6 +1078,14 @@ bindClickById('btn-add-return-item', () => {
 
   bindClickById('btn-refresh-damaged-products', () => {
     loadDamagedProductsModule();
+  });
+
+  bindClickById('btn-download-stock-monthly-report', () => {
+    downloadMonthlyStockReport();
+  });
+
+  bindClickById('btn-run-stock-snapshot', () => {
+    runManualStockSnapshot();
   });
 
   bindClickById('btn-products-all', () => {

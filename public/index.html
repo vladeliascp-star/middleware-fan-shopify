@@ -64,6 +64,7 @@
   <button type="button" class="tab-button" data-tab-target="fulfillment">Fulfillment</button>
   <button type="button" class="tab-button" data-tab-target="products">Products</button>
   <button type="button" class="tab-button" data-tab-target="returns">Returns</button>
+  <button type="button" class="tab-button" data-tab-target="reports">Reports</button>
 </div>
 
     <!-- ================= OUTBOUND ================= -->
@@ -208,7 +209,7 @@
           <button id="btn-product-stock">Stoc</button>
         </div>
       </div>
-    </section>
+    
 
     <!-- ================= RETURNS ================= -->
     <section class="card" data-tab-panel="returns" hidden>
@@ -252,6 +253,30 @@
   </div>
 </section>
 
+    <!-- ================= REPORTS ================= -->
+    <section class="card" data-tab-panel="reports" hidden>
+      <h2>Reports</h2>
+
+      <div class="form-block">
+        <h3>Raport stoc lunar Excel</h3>
+        <div class="row">
+          <input id="stockReportMonth" type="month" />
+          <button id="btn-download-stock-monthly-report">
+            Descarca raport Excel
+          </button>
+        </div>
+      </div>
+
+      <div class="form-block">
+        <h3>Snapshot stoc manual</h3>
+        <div class="row">
+          <button id="btn-run-stock-snapshot" class="primary">
+            Ruleaza snapshot acum
+          </button>
+        </div>
+      </div>
+    </section>
+
     <!-- ================= OUTPUT ================= -->
     <section class="card output-card">
       <h2>Raspunsuri</h2>
@@ -260,6 +285,6 @@
 
   </div>
 
-  <script src="/app.js?v=2"></script>
+  <script src="/app.js?v=3"></script>
 </body>
 </html>
