@@ -252,6 +252,7 @@ const processedProductWebhooksFile = path.join(__dirname, 'processed_product_web
 const shopifyProductSkuMapFile = path.join(__dirname, 'shopify_product_sku_map.json');
 const shopifyInventoryItemMapFile = path.join(__dirname, 'shopify_inventory_item_map.json');
 const shopifyLastSyncedStockFile = path.join(__dirname, 'shopify_last_synced_stock.json');
+const stockSnapshotsFile = path.join(__dirname, 'stock_snapshots.json');
 
 let shopifyProductSkuMap = {};
 let shopifyInventoryItemMap = {};
@@ -854,6 +855,79 @@ function saveShopifyLastSyncedStock() {
     shopifyLastSyncedStockFile,
     JSON.stringify(shopifyLastSyncedStock, null, 2)
   );
+}
+
+function readStockSnapshots() {
+  if (!fs.existsSync(stockSnapshotsFile)) {
+    return [];
+  }
+
+  const raw = fs.readFileSync(stockSnapshotsFile, 'utf8');
+  return JSON.parse(raw || '[]');
+}
+
+function writeJsonFileSafe(filePath, data) {
+  const tempFilePath = `${filePath}.tmp`;
+
+  fs.writeFileSync(
+    tempFilePath,
+    JSON.stringify(data, null, 2)
+  );
+
+  fs.renameSync(tempFilePath, filePath);
+}
+
+function getTodayDateKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function snapshotExistsForDate(snapshots, dateKey) {
+  return snapshots.some(snapshot => snapshot.date === dateKey);
+}
+
+async function runDailyStockSnapshot() {
+  const dateKey = getTodayDateKey();
+  const snapshots = readStockSnapshots();
+
+  if (snapshotExistsForDate(snapshots, dateKey)) {
+    return {
+      success: true,
+      skipped: true,
+      reason: 'Snapshot already exists for today',
+      date: dateKey
+    };
+  }
+
+  const stockResponse = await getProductStockFromFan(1);
+  const rows = extractFanReportRows(stockResponse);
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    throw new Error('Snapshot failed: FAN returned no stock rows');
+  }
+
+  const snapshotRows = rows
+    .map(item => ({
+      sku: String(item.productCode || '').trim(),
+      quantity: Number(item.quantity || 0)
+    }))
+    .filter(item => item.sku);
+
+  if (!snapshotRows.length) {
+    throw new Error('Snapshot failed: no valid SKU rows');
+  }
+
+  snapshots.push({
+    date: dateKey,
+    rows: snapshotRows
+  });
+
+  writeJsonFileSafe(stockSnapshotsFile, snapshots);
+
+  return {
+    success: true,
+    saved: snapshotRows.length,
+    date: dateKey
+  };
 }
 
 function getLastSyncedStockBySku(sku) {
@@ -2880,6 +2954,18 @@ try {
 /**
  * GET ORDER FROM FAN
  */
+app.get('/reports/stock-snapshot/run', requireAdminBasicAuth, async (req, res) => {
+  try {
+    const result = await runDailyStockSnapshot();
+    res.json(result);
+  } catch (err) {
+    console.error('[STOCK SNAPSHOT ERROR]', err.response?.data || err.message);
+    res.status(500).json({
+      success: false,
+      error: err.response?.data || err.message
+    });
+  }
+});
 app.get('/reports/stock-monthly', requireAdminBasicAuth, async (req, res) => {
   try {
     const month = req.query.month;
