@@ -3447,12 +3447,14 @@ app.post('/webhooks/shopify/products/update', async (req, res) => {
     saveProcessedProductWebhooks();
 
     logInfo('SHOPIFY_PRODUCT_UPDATE', 'import result', {
-      productId: product.id,
-      importedCount: result.importedCount,
-      skippedCount: result.skippedCount,
-      success: result.success,
-      reason: result.reason || null
-    });
+  productId: product.id,
+  importedCount: result.importedCount,
+  skippedCount: result.skippedCount,
+  success: result.success,
+  reason: result.reason || null,
+  fanResponse: result.fanResponse || null,
+  skippedVariants: result.skippedVariants || []
+});
 
     try {
       await loadFanProductsCache();
