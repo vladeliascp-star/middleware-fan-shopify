@@ -3440,7 +3440,7 @@ app.post('/webhooks/shopify/products/update', async (req, res) => {
       return res.status(200).send('Duplicate ignored');
     }
 
-    const result = await importShopifyProductToFan(product);
+    const result = await importShopifyProductUpdateToFan(product);
     saveProductSkusFromShopifyProduct(product);
 
     processedProductWebhooks.add(dedupKey);
