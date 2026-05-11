@@ -3718,8 +3718,21 @@ loadShopifyLastSyncedStock();
   }
 })();
 
-pollFanReturnReports();
-setInterval(pollFanReturnReports, 5 * 60 * 1000);
+async function pollFanReturnReportsSafe() {
+  try {
+    await pollFanReturnReports();
+  } catch (err) {
+    console.error('[FAN RETURN POLL ERROR]', {
+      message: err.message,
+      status: err.response?.status || null,
+      response: err.response?.data || null
+    });
+  }
+}
+
+pollFanReturnReportsSafe();
+setInterval(pollFanReturnReportsSafe, 5 * 60 * 1000);
+
 let isSyncRunning = false;
 let isFanSyncRunning = false;
 let isStockSnapshotRunning = false;
