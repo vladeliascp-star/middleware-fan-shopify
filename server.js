@@ -1936,6 +1936,19 @@ function sanitizeHtmlToText(value) {
   return String(value || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function hasShopifyTag(product, tagName) {
+  const tags = String(product?.tags || '')
+    .split(',')
+    .map(tag => tag.trim().toLowerCase())
+    .filter(Boolean);
+
+  return tags.includes(String(tagName || '').trim().toLowerCase());
+}
+
+function shouldImportProductToFan(product) {
+  return hasShopifyTag(product, 'hidden-product');
+}
+
 function isValidShopifyVariantForFan(variant, product) {
   const sku = String(variant?.sku || '').trim();
   const barcode = normalizeBarcode(variant?.barcode);
@@ -2006,6 +2019,22 @@ function extractValidFanProductsFromShopifyProduct(product) {
 
   const validProducts = [];
   const skippedVariants = [];
+
+  if (!shouldImportProductToFan(product)) {
+    for (const variant of variants) {
+      skippedVariants.push({
+        variantId: variant?.id || null,
+        sku: String(variant?.sku || '').trim() || null,
+        barcode: normalizeBarcode(variant?.barcode),
+        reason: 'product_without_hidden_product_tag'
+      });
+    }
+
+    return {
+      validProducts,
+      skippedVariants
+    };
+  }
 
   for (const variant of variants) {
     if (!isValidShopifyVariantForFan(variant, product)) {
