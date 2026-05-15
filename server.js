@@ -173,7 +173,7 @@ async function handleOblioCollectForPaidOrder(order) {
     return;
   }
 
-  for (let attempt = 1; attempt <= 5; attempt++) {
+  for (let attempt = 1; attempt <= 20; attempt++) {
     try {
       logInfo('OBLIO_COLLECT', 'search invoice attempt', {
         orderId: order.id,
@@ -190,13 +190,21 @@ async function handleOblioCollectForPaidOrder(order) {
           attempt
         });
 
-        await sleep(15000);
+        await sleep(30000);
         continue;
       }
 
       const invoice = invoices[0];
 
-      const invoiceDetails = await getOblioInvoiceDetails(
+logInfo('OBLIO_COLLECT', 'invoice found', {
+  orderId: order.id,
+  orderName,
+  attempt,
+  seriesName: invoice.seriesName,
+  number: invoice.number
+});
+
+const invoiceDetails = await getOblioInvoiceDetails(
         invoice.seriesName,
         invoice.number
       );
@@ -234,7 +242,7 @@ async function handleOblioCollectForPaidOrder(order) {
     }
   }
 
-  logError('OBLIO_COLLECT', 'failed after retries', {
+  logError('OBLIO_COLLECT', 'invoice still missing after retries - manual collect needed', {
     orderId: order?.id || null,
     orderName
   });
